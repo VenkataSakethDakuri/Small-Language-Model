@@ -9,6 +9,9 @@ from unsloth import FastLanguageModel
 from trl import SFTTrainer, SFTConfig
 from transformers import TextStreamer
 from datasets import load_dataset
+import time
+import psutil
+import os
 
 
 
@@ -27,7 +30,6 @@ model = FastLanguageModel.get_peft_model(
     lora_dropout = 0, 
     bias = "none",    
     use_gradient_checkpointing = "unsloth", 
-    random_state = 3407,
     use_rslora = False,  
     loftq_config = None, 
     random_state = 108
@@ -46,7 +48,7 @@ def data_processing(training_data):
         text += f"### Response:\n{output_text}\n<|endoftext|>"
         texts.append(text)
     
-    return texts
+    return {f"text": texts}
 
 dataset = load_dataset("yahma/alpaca-cleaned", split = "train[:1000]")
 
@@ -91,15 +93,13 @@ tokenizer.save_pretrained("Experiments/1/adapter")
 # print("Adapter and base model saved successfully.")
 
 #unsloth automatically loads the base model, need not save it seperately.
-
-
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name = "Experiments/1/adapter", 
     max_seq_length = 512,
     dtype = None,  
     load_in_4bit = True,  # Uses 4-bit for base model not adapter.  LoRA adapters are tiny (~2-5MB), so quantizing them saves minimal memory
 )
-FastLanguageModel.for_inference(model) 
+
 
 
 alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
@@ -114,6 +114,38 @@ alpaca_prompt = """Below is an instruction that describes a task, paired with an
 {}"""
 
 FastLanguageModel.for_inference(model) # Enable native 2x faster inference
+
+def get_memory_mb():
+    process = psutil.Process(os.getpid())
+    cpu_mem = process.memory_info().rss / 1024 / 1024
+    gpu_mem = torch.cuda.memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0
+    return cpu_mem + gpu_mem
+
+def get_model_size(model):
+    params = sum(p.numel() for p in model.parameters())
+    size_mb = params * 4 / (1024 * 1024)  # Assume 4 bytes per param
+    return params, size_mb
+
+# Measure model size
+param_count, model_size_mb = get_model_size(model)
+
+start_time = time.time()
+
+
+#custom text streamer to measure time to first token
+class CustomTextStreamer(TextStreamer):
+    def __init__(self, tokenizer, **kwargs):
+        super().__init__(tokenizer, **kwargs)
+        self.first_token_time = 0
+        self.flag = False
+    
+    def put(self, value):
+        if not self.flag:
+            self.first_token_time = time.time()
+            self.flag = True
+        
+        super().put(value)
+
 inputs = tokenizer(
 [
     alpaca_prompt.format(
@@ -123,8 +155,17 @@ inputs = tokenizer(
     )
 ], return_tensors = "pt").to("cuda")
 
-text_streamer = TextStreamer(tokenizer)
+text_streamer = CustomTextStreamer(tokenizer)
 _ = model.generate(**inputs, streamer = text_streamer, max_new_tokens = 128)
+
+end_time = time.time()
+
+
+print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
+print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
+print(f"Inference time: {end_time - start_time:.2f} seconds")
+
+
 
 
 
