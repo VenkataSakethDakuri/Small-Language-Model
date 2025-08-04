@@ -97,11 +97,33 @@ trainer = Trainer(
     tokenizer=tokenizer,
 )
 
+# Display current GPU stats to help monitor memory availability before training
+gpu_stats = torch.cuda.get_device_properties(0)
+start_gpu_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
+max_memory = round(gpu_stats.total_memory / 1024 / 1024 / 1024, 3)
+print(f"GPU = {gpu_stats.name}. Max memory = {max_memory} GB.")
+print(f"{start_gpu_memory} GB of memory reserved.")
+
 train_time_start = time.time()
 
-trainer.train()
+trainer_result = trainer.train()
 
 train_time_end = time.time()
+
+# Track final GPU memory and training time usage
+used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
+used_memory_for_lora = round(used_memory - start_gpu_memory, 3)
+used_percentage = round(used_memory / max_memory * 100, 3)
+lora_percentage = round(used_memory_for_lora / max_memory * 100, 3)
+print(f"\nTraining Metrics:")
+print(f"{trainer_result.log_history[-1]['train_runtime'] if trainer_result.log_history else train_time_end - train_time_start:.2f} seconds used for training.")
+print(
+    f"{round((trainer_result.log_history[-1]['train_runtime'] if trainer_result.log_history else train_time_end - train_time_start)/60, 2)} minutes used for training."
+)
+print(f"Peak reserved memory = {used_memory} GB.")
+print(f"Peak reserved memory for training = {used_memory_for_lora} GB.")
+print(f"Peak reserved memory % of max memory = {used_percentage} %.")
+print(f"Peak reserved memory for training % of max memory = {lora_percentage} %.")
 
 model.save_pretrained("Experiments/1/adapterRegular")
 tokenizer.save_pretrained("Experiments/1/adapterRegular")
@@ -115,8 +137,6 @@ base_model = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(base_model, "Experiments/1/adapterRegular")
 tokenizer = AutoTokenizer.from_pretrained("Experiments/1/adapterRegular")
 
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
 
 alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 
@@ -130,12 +150,6 @@ alpaca_prompt = """Below is an instruction that describes a task, paired with an
 {}"""
 
 model.eval()
-
-def get_memory_mb():
-    process = psutil.Process(os.getpid())
-    cpu_mem = process.memory_info().rss / 1024 / 1024
-    gpu_mem = torch.cuda.memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0
-    return cpu_mem + gpu_mem
 
 def get_model_size(model):
     params = sum(p.numel() for p in model.parameters())
@@ -177,7 +191,7 @@ with torch.no_grad():
 
 end_time = time.time()
 
+print(f"\nInference Metrics:")
 print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
-print(f"Training time: {train_time_end - train_time_start:.2f} seconds")
 print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
 print(f"Inference time: {end_time - start_time:.2f} seconds")
