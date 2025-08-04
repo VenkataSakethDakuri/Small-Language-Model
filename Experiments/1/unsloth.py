@@ -22,6 +22,9 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     load_in_4bit=True,  # Use 4-bit during training, reduces training memory not final model size
 )
 
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
 model = FastLanguageModel.get_peft_model(
     model,
     r = 16, 
@@ -54,6 +57,8 @@ dataset = load_dataset("yahma/alpaca-cleaned", split = "train[:1000]")
 
 dataset = dataset.map(data_processing, batched=True)
 
+
+#SFTTrainer does tokenzing and data collating internally, so no need to do it separately.
 trainer = SFTTrainer(
     model = model,
     tokenizer = tokenizer,
@@ -73,18 +78,21 @@ trainer = SFTTrainer(
         weight_decay = 0.01,
         lr_scheduler_type = "linear",
         seed = 108,
-        output_dir = "outputs",
+        output_dir = "outputsUnsloth",
         report_to = "none", 
     ),
 )
 
+train_time_start = time.time()
 
 #start training
 trainer.train()
 
+train_time_end = time.time()
+
 # Saving the adapter and base model seperately without merging, use gguf for merging
-model.save_pretrained("Experiments/1/adapter")
-tokenizer.save_pretrained("Experiments/1/adapter")
+model.save_pretrained("Experiments/1/adapterUnsloth")
+tokenizer.save_pretrained("Experiments/1/adapterUnsloth")
 
 #LoRA adapters modify internal layer computations, not the vocabulary or tokenization logic. So we need to keep tokenizer of base model only.
 # base_model = model.get_base_model()
@@ -94,7 +102,7 @@ tokenizer.save_pretrained("Experiments/1/adapter")
 
 #unsloth automatically loads the base model, need not save it seperately.
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "Experiments/1/adapter", 
+    model_name = "Experiments/1/adapterUnsloth", 
     max_seq_length = 512,
     dtype = None,  
     load_in_4bit = True,  # Uses 4-bit for base model not adapter.  LoRA adapters are tiny (~2-5MB), so quantizing them saves minimal memory
@@ -114,6 +122,11 @@ alpaca_prompt = """Below is an instruction that describes a task, paired with an
 {}"""
 
 FastLanguageModel.for_inference(model) # Enable native 2x faster inference
+
+model.eval()
+
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
 def get_memory_mb():
     process = psutil.Process(os.getpid())
@@ -156,7 +169,9 @@ inputs = tokenizer(
 ], return_tensors = "pt").to("cuda")
 
 text_streamer = CustomTextStreamer(tokenizer)
-_ = model.generate(**inputs, streamer = text_streamer, max_new_tokens = 128)
+
+with torch.no_grad():
+    _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
 
 end_time = time.time()
 
@@ -164,6 +179,7 @@ end_time = time.time()
 print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
 print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
 print(f"Inference time: {end_time - start_time:.2f} seconds")
+print(f"Training time: {train_time_end - train_time_start:.2f} seconds")
 
 
 

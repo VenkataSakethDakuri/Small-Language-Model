@@ -1,0 +1,183 @@
+"""
+This code is an example of training distilgpt2 using standard transformers and PEFT libraries with LoRA adapters. 
+It stores the adapter separately and later is used for inference. The model is trained on the Alpaca dataset. 
+No quantization is used.
+"""
+
+from sympy import trunc
+import torch
+from transformers import (
+    AutoTokenizer, 
+    AutoModelForCausalLM, 
+    TrainingArguments, 
+    Trainer,
+    DataCollatorForLanguageModeling,
+    TextStreamer
+)
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel
+from datasets import load_dataset
+import time
+import psutil
+import os
+
+tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
+model = AutoModelForCausalLM.from_pretrained(
+    "distilgpt2",
+    device_map="auto"
+)
+
+#GPT models (including DistilGPT-2) were originally designed for text generation, not batch processing. They don't include a dedicated padding token in their vocabulary
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    inference_mode=False,
+    r=16,
+    target_modules=["c_attn", "c_proj", "c_fc"],
+    lora_alpha=16,
+    lora_dropout=0, #dropout not used when inference_mode=True
+    bias="none"
+)
+
+model = get_peft_model(model, lora_config)
+
+def data_processing(training_data):
+    instructions = training_data["instruction"]
+    inputs = training_data["input"]
+    outputs = training_data["output"]
+    texts = []
+
+    for instruction, input_text, output_text in zip(instructions, inputs, outputs):
+        text = f"### Instruction:\n{instruction}\n"
+        if input_text:
+            text += f"### Input:\n{input_text}\n"
+        text += f"### Response:\n{output_text}\n<|endoftext|>"
+        texts.append(text)
+    
+    return {"text": texts}
+
+dataset = load_dataset("yahma/alpaca-cleaned", split="train[:1000]")
+
+dataset = dataset.map(data_processing, batched=True)
+
+def tokenize_function(examples):
+    return tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512)
+
+tokenized_dataset = dataset.map(tokenize_function, remove_columns=dataset.column_names)
+
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False,
+    pad_to_multiple_of=8  
+)
+
+training_args = TrainingArguments(
+    output_dir="outputsRegular",
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=4,
+    warmup_steps=5,
+    num_train_epochs=1,
+    learning_rate=2e-4,
+    logging_steps=1,
+    optim="adamw_8bit",
+    weight_decay=0.01,
+    lr_scheduler_type="linear",
+    seed=108,
+    report_to="none",
+    save_strategy="epoch",
+    dataloader_drop_last=False,
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_dataset,
+    data_collator=data_collator,
+    tokenizer=tokenizer,
+)
+
+train_time_start = time.time()
+
+trainer.train()
+
+train_time_end = time.time()
+
+model.save_pretrained("Experiments/1/adapterRegular")
+tokenizer.save_pretrained("Experiments/1/adapterRegular")
+
+base_model = AutoModelForCausalLM.from_pretrained(
+    "distilgpt2",
+    device_map="auto"
+)
+
+
+model = PeftModel.from_pretrained(base_model, "Experiments/1/adapterRegular")
+tokenizer = AutoTokenizer.from_pretrained("Experiments/1/adapterRegular")
+
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
+
+### Instruction:
+{}
+
+### Input:
+{}
+
+### Response:
+{}"""
+
+model.eval()
+
+def get_memory_mb():
+    process = psutil.Process(os.getpid())
+    cpu_mem = process.memory_info().rss / 1024 / 1024
+    gpu_mem = torch.cuda.memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0
+    return cpu_mem + gpu_mem
+
+def get_model_size(model):
+    params = sum(p.numel() for p in model.parameters())
+    size_mb = params * 4 / (1024 / 1024)  
+    return params, size_mb
+
+
+param_count, model_size_mb = get_model_size(model)
+
+start_time = time.time()
+
+# Custom text streamer to measure time to first token
+class CustomTextStreamer(TextStreamer):
+    def __init__(self, tokenizer, **kwargs):
+        super().__init__(tokenizer, **kwargs)
+        self.first_token_time = 0
+        self.flag = False
+    
+    def put(self, value):
+        if not self.flag:
+            self.first_token_time = time.time()
+            self.flag = True
+        
+        super().put(value)
+
+inputs = tokenizer(
+    [
+        alpaca_prompt.format(
+            "Continue the fibonnaci sequence.", # instruction
+            "1, 1, 2, 3, 5, 8", # input
+            "", # output - leave this blank for generation!
+        )
+    ], return_tensors="pt").to("cuda")
+
+text_streamer = CustomTextStreamer(tokenizer)
+
+with torch.no_grad():
+    _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
+
+end_time = time.time()
+
+print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
+print(f"Training time: {train_time_end - train_time_start:.2f} seconds")
+print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
+print(f"Inference time: {end_time - start_time:.2f} seconds")
