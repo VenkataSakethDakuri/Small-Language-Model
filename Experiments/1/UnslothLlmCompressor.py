@@ -81,7 +81,7 @@ trainer = SFTTrainer(
         weight_decay = 0.01,
         lr_scheduler_type = "linear",
         seed = 108,
-        output_dir = "outputsUnsloth",
+        output_dir = "TrainingUnslothLLMCompressor",
         report_to = "none", 
     ),
 )
@@ -116,8 +116,8 @@ print(f"Peak reserved memory % of max memory = {used_percentage} %.")
 print(f"Peak reserved memory for training % of max memory = {lora_percentage} %.")
 
 # Saving the adapter and base model seperately without merging, use gguf for merging
-model.save_pretrained("Experiments/1/adapterUnsloth")
-tokenizer.save_pretrained("Experiments/1/adapterUnsloth")
+model.save_pretrained("Experiments/1/adapterUnslothLLMCompressor")
+tokenizer.save_pretrained("Experiments/1/adapterUnslothLLMCompressor")
 
 #LoRA adapters modify internal layer computations, not the vocabulary or tokenization logic. So we need to keep tokenizer of base model only.
 # base_model = model.get_base_model()
@@ -127,7 +127,7 @@ tokenizer.save_pretrained("Experiments/1/adapterUnsloth")
 
 #unsloth automatically loads the base model, need not save it seperately.
 model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name = "Experiments/1/adapterUnsloth", 
+    model_name = "Experiments/1/adapterUnslothLLMCompressor", 
     max_seq_length = 512,
     dtype = None,  
     load_in_4bit = False, #Dont quantize using unsloth, use LLM Compressor for that.
@@ -166,7 +166,7 @@ oneshot(
     model=merged_model,
     dataset=calibration_dataset,
     recipe=gtpq_recipe,
-    output_dir="Experiments/1/UnslothLLMCompressor"
+    output_dir="Experiments/1/UnslothLLMCompressorInferenceQuantized"
 )
 
 alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
@@ -180,7 +180,11 @@ alpaca_prompt = """Below is an instruction that describes a task, paired with an
 ### Response:
 {}"""
 
-FastLanguageModel.for_inference(model) # Enable native 2x faster inference
+
+#Use the quantized model using LLMCompressor
+model = SparseAutoModelForCausalLM.from_pretrained(
+    "Experiments/1/UnslothLLMCompressorInferenceQuantized"
+)
 
 model.eval()
 
@@ -236,7 +240,7 @@ torch.cuda.empty_cache()
 
 
 vllm_model = LLM(
-    model="Experiments/1/UnslothLLMCompressor",
+    model="Experiments/1/UnslothLLMCompressorInferenceQuantized",
 )
 
 

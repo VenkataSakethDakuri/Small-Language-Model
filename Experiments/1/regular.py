@@ -72,7 +72,7 @@ data_collator = DataCollatorForLanguageModeling(
 )
 
 training_args = TrainingArguments(
-    output_dir="outputsRegular",
+    output_dir="TrainingRegular",
     per_device_train_batch_size=2,
     gradient_accumulation_steps=4,
     warmup_steps=5,

@@ -77,7 +77,7 @@ trainer = SFTTrainer(
         weight_decay = 0.01,
         lr_scheduler_type = "linear",
         seed = 108,
-        output_dir = "outputsUnsloth",
+        output_dir = "TrainingUnsloth",
         report_to = "none", 
     ),
 )

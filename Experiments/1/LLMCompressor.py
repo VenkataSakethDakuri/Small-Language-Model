@@ -77,7 +77,7 @@ data_collator = DataCollatorForLanguageModeling(
 
 # Replace SFTTrainer with standard Trainer
 training_args = TrainingArguments(
-    output_dir="outputsUnsloth",
+    output_dir="TrainingLLMCompressor",
     per_device_train_batch_size=2,
     gradient_accumulation_steps=4,
     warmup_steps=5,
@@ -107,7 +107,6 @@ print(f"GPU = {gpu_stats.name}. Max memory = {max_memory} GB.")
 print(f"{start_gpu_memory} GB of memory reserved.")
 
 train_time_start = time.time()
-
 
 trainer_result = trainer.train()
 
@@ -168,7 +167,7 @@ oneshot(
     model=merged_model,
     dataset=calibration_dataset,
     recipe=gtpq_recipe,
-    output_dir="Experiments/1/LLMCompressor"
+    output_dir="Experiments/1/LLMCompressorInferenceQuantized"
 )
 
 alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
@@ -182,9 +181,12 @@ alpaca_prompt = """Below is an instruction that describes a task, paired with an
 ### Response:
 {}"""
 
-# Load the merged model for inference (replacing FastLanguageModel.for_inference)
 
-model = merged_model
+#Loading the quantized LLMCompressor model
+model = SparseAutoModelForCausalLM.from_pretrained(
+    "Experiments/1/LLMCompressorInferenceQuantized"
+)
+
 model.eval()
 
 def get_model_size(model):
@@ -236,7 +238,7 @@ print(f"Inference time: {end_time - start_time:.2f} seconds")
 torch.cuda.empty_cache()
 
 vllm_model = LLM(
-    model="Experiments/1/UnslothLLMCompressor",
+    model="Experiments/1/LLMCompressorInferenceQuantized",
 )
 
 sampling_params = SamplingParams(
