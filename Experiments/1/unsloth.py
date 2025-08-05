@@ -1,7 +1,6 @@
 """
-This code is an example of training distilgpt2 using the Unsloth library with LoRA adapters. It stores the adapter separately
-and later is used for inference. The model is trained on the Alpaca dataset. Base model is Quantized to 4 bit during inference
-and training.
+This code is an example of pipeline using the Unsloth library with LoRA adapters. It stores the adapter separately
+and later is used for inference.
 """
 
 import torch

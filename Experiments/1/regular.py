@@ -1,7 +1,6 @@
 """
-This code is an example of training distilgpt2 using standard transformers and PEFT libraries with LoRA adapters. 
-It stores the adapter separately and later is used for inference. The model is trained on the Alpaca dataset. 
-No quantization is used.
+This code is an example of pipeline using standard transformers and PEFT libraries with LoRA adapters. 
+It stores the adapter separately and later is used for inference. No quantization is used.
 """
 
 from sympy import trunc
