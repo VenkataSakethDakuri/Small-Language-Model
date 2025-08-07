@@ -28,6 +28,7 @@ model = AutoModelForCausalLM.from_pretrained(
 #GPT models (including DistilGPT-2) were originally designed for text generation, not batch processing. They don't include a dedicated padding token in their vocabulary
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token_id = tokenizer.eos_token_id
 
 lora_config = LoraConfig(
     task_type=TaskType.CAUSAL_LM,
@@ -114,10 +115,13 @@ used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
 used_memory_for_lora = round(used_memory - start_gpu_memory, 3)
 used_percentage = round(used_memory / max_memory * 100, 3)
 lora_percentage = round(used_memory_for_lora / max_memory * 100, 3)
+
+torch.cuda.empty_cache()
+
 print(f"\nTraining Metrics:")
-print(f"{trainer_result.log_history[-1]['train_runtime'] if trainer_result.log_history else train_time_end - train_time_start:.2f} seconds used for training.")
+print(f"{trainer.state.log_history[-1]['train_runtime'] if trainer.state.log_history else train_time_end - train_time_start:.2f} seconds used for training.")
 print(
-    f"{round((trainer_result.log_history[-1]['train_runtime'] if trainer_result.log_history else train_time_end - train_time_start)/60, 2)} minutes used for training."
+    f"{round((trainer.state.log_history[-1]['train_runtime'] if trainer.state.log_history else train_time_end - train_time_start)/60, 2)} minutes used for training."
 )
 print(f"Peak reserved memory = {used_memory} GB.")
 print(f"Peak reserved memory for training = {used_memory_for_lora} GB.")
@@ -126,6 +130,8 @@ print(f"Peak reserved memory for training % of max memory = {lora_percentage} %.
 
 model.save_pretrained("Experiments/1/adapterRegular")
 tokenizer.save_pretrained("Experiments/1/adapterRegular")
+
+torch.cuda.empty_cache()
 
 base_model = AutoModelForCausalLM.from_pretrained(
     "distilgpt2",
@@ -152,7 +158,7 @@ model.eval()
 
 def get_model_size(model):
     params = sum(p.numel() for p in model.parameters())
-    size_mb = params * 4 / (1024 / 1024)  
+    size_mb = params * 4 / (1024 * 1024)  
     return params, size_mb
 
 
@@ -194,3 +200,5 @@ print(f"\nInference Metrics:")
 print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
 print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
 print(f"Inference time: {end_time - start_time:.2f} seconds")
+
+torch.cuda.empty_cache()
