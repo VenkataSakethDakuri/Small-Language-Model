@@ -19,9 +19,9 @@ import time
 import psutil
 import os
 
-tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B")
 model = AutoModelForCausalLM.from_pretrained(
-    "distilgpt2",
+    "Qwen/Qwen2-0.5B",
     device_map="auto"
 )
 
@@ -34,13 +34,28 @@ lora_config = LoraConfig(
     task_type=TaskType.CAUSAL_LM,
     inference_mode=False,
     r=16,
-    target_modules=["c_attn", "c_proj", "c_fc"],
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"],
     lora_alpha=16,
     lora_dropout=0, #dropout not used when inference_mode=True
     bias="none"
 )
 
 model = get_peft_model(model, lora_config)
+
+# def data_processing(training_data):
+#     instructions = training_data["instruction"]
+#     inputs = training_data["input"]
+#     outputs = training_data["output"]
+#     texts = []
+
+#     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
+#         text = f"### Instruction:\n{instruction}\n"
+#         if input_text:
+#             text += f"### Input:\n{input_text}\n"
+#         text += f"### Response:\n{output_text}\n<|endoftext|>"
+#         texts.append(text)
+    
+#     return {"text": texts}
 
 def data_processing(training_data):
     instructions = training_data["instruction"]
@@ -49,15 +64,19 @@ def data_processing(training_data):
     texts = []
 
     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-        text = f"### Instruction:\n{instruction}\n"
-        if input_text:
-            text += f"### Input:\n{input_text}\n"
-        text += f"### Response:\n{output_text}\n<|endoftext|>"
+        # Structure as a chat with system, user, and assistant
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
+            {"role": "assistant", "content": output_text}
+        ]
+        # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
+        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
         texts.append(text)
     
     return {"text": texts}
 
-dataset = load_dataset("yahma/alpaca-cleaned", split="train[:1000]")
+dataset = load_dataset("yahma/alpaca-cleaned", split="train[:25000]")
 
 dataset = dataset.map(data_processing, batched=True)
 
@@ -68,7 +87,7 @@ tokenized_dataset = dataset.map(tokenize_function, remove_columns=dataset.column
 
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer,
-    mlm=False,
+    mlm=False, #true for bert-like models, false for gpt-like models
     pad_to_multiple_of=8  
 )
 
@@ -77,7 +96,7 @@ training_args = TrainingArguments(
     per_device_train_batch_size=2,
     gradient_accumulation_steps=4,
     warmup_steps=5,
-    num_train_epochs=1,
+    num_train_epochs=5,
     learning_rate=2e-4,
     logging_steps=1,
     optim="adamw_8bit",
@@ -97,51 +116,38 @@ trainer = Trainer(
     tokenizer=tokenizer,
 )
 
-# Display current GPU stats to help monitor memory availability before training
-gpu_stats = torch.cuda.get_device_properties(0)
-start_gpu_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
-max_memory = round(gpu_stats.total_memory / 1024 / 1024 / 1024, 3)
-print(f"GPU = {gpu_stats.name}. Max memory = {max_memory} GB.")
-print(f"{start_gpu_memory} GB of memory reserved.")
+torch.cuda.reset_peak_memory_stats(device=0)
 
 train_time_start = time.time()
 
 trainer_result = trainer.train()
 
-train_time_end = time.time()
+torch.cuda.synchronize()
 
-# Track final GPU memory and training time usage
-used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
-used_memory_for_lora = round(used_memory - start_gpu_memory, 3)
-used_percentage = round(used_memory / max_memory * 100, 3)
-lora_percentage = round(used_memory_for_lora / max_memory * 100, 3)
+train_time_end = time.time()
 
 torch.cuda.empty_cache()
 
-print(f"\nTraining Metrics:")
-print(f"{trainer.state.log_history[-1]['train_runtime'] if trainer.state.log_history else train_time_end - train_time_start:.2f} seconds used for training.")
-print(
-    f"{round((trainer.state.log_history[-1]['train_runtime'] if trainer.state.log_history else train_time_end - train_time_start)/60, 2)} minutes used for training."
-)
-print(f"Peak reserved memory = {used_memory} GB.")
-print(f"Peak reserved memory for training = {used_memory_for_lora} GB.")
-print(f"Peak reserved memory % of max memory = {used_percentage} %.")
-print(f"Peak reserved memory for training % of max memory = {lora_percentage} %.")
+used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
 
-model.save_pretrained("Experiments/1/adapterRegular")
-tokenizer.save_pretrained("Experiments/1/adapterRegular")
+torch.cuda.empty_cache()
+
+print("Training Metrics:")
+print(f"{train_time_start} - {train_time_end} seconds used for training.")
+print(f"Peak reserved memory = {used_memory} GB.")
+
+model.save_pretrained("adapterRegular")
+tokenizer.save_pretrained("adapterRegular")
 
 torch.cuda.empty_cache()
 
 base_model = AutoModelForCausalLM.from_pretrained(
-    "distilgpt2",
+    "Qwen/Qwen2-0.5B",
     device_map="auto"
 )
 
-
-model = PeftModel.from_pretrained(base_model, "Experiments/1/adapterRegular")
-tokenizer = AutoTokenizer.from_pretrained("Experiments/1/adapterRegular")
-
+model = PeftModel.from_pretrained(base_model, "adapterRegular")
+tokenizer = AutoTokenizer.from_pretrained("adapterRegular")
 
 alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 
@@ -158,13 +164,11 @@ model.eval()
 
 def get_model_size(model):
     params = sum(p.numel() for p in model.parameters())
-    size_mb = params * 4 / (1024 * 1024)  
+    size_mb = params * 4 / (1024 * 1024)  # No of bytes depends on the model type, here we assume float32
     return params, size_mb
 
 
 param_count, model_size_mb = get_model_size(model)
-
-start_time = time.time()
 
 # Custom text streamer to measure time to first token
 class CustomTextStreamer(TextStreamer):
@@ -183,13 +187,17 @@ class CustomTextStreamer(TextStreamer):
 inputs = tokenizer(
     [
         alpaca_prompt.format(
-            "Continue the fibonnaci sequence.", # instruction
-            "1, 1, 2, 3, 5, 8", # input
+            "Explain what is photosynthesis in simple terms", # instruction
+            "", # input
             "", # output - leave this blank for generation!
         )
     ], return_tensors="pt").to("cuda")
 
 text_streamer = CustomTextStreamer(tokenizer)
+
+torch.cuda.reset_peak_memory_stats(device=0)
+
+start_time = time.time()
 
 with torch.no_grad():
     _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
@@ -198,7 +206,8 @@ end_time = time.time()
 
 print(f"\nInference Metrics:")
 print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
-print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
+print(f"Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
+print(f"Time to first token: {text_streamer.first_token_time - start_time:.5f} seconds")
 print(f"Inference time: {end_time - start_time:.2f} seconds")
 
 torch.cuda.empty_cache()
