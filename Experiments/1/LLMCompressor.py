@@ -1,6 +1,7 @@
 """
 This code is a pipeline for making small language models using the LLM Compressor library with LoRA adapters. It stores the adapter separately
-and later is used for inference. VLLM is used for inference. Adapted for Qwen/Qwen2-0.5B (smallest compatible Qwen model).
+and later is used for inference. VLLM is used for inference. Adapted for Qwen/Qwen2-0.5B (smallest compatible Qwen model). First quantize the base 
+model and then apply Lora. 
 """
 
 import torch
@@ -16,6 +17,7 @@ from llmcompressor.modifiers.smoothquant import SmoothQuantModifier
 from vllm import LLM, SamplingParams
 from peft import LoraConfig, get_peft_model, TaskType
 import gc
+from typing import Any
 
 
 
@@ -26,7 +28,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        device_map="auto",
+       # device_map="auto",
       #  load_in_4bit=True  # Use 4-bit during training to reduce memory 
     )
 
@@ -46,8 +48,7 @@ if __name__ == "__main__":
         bias="none"
     )
 
-    model = get_peft_model(model, lora_config)
-
+    
     def data_processing(training_data):
         instructions = training_data["instruction"]
         inputs = training_data["input"]
@@ -135,17 +136,13 @@ if __name__ == "__main__":
     # Add cache clearing here before loading new model
     torch.cuda.empty_cache()
 
-    # Load the base model and apply the saved adapter
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=None, device_map="auto")
-    model = get_peft_model(model, lora_config)
+
    # model.load_adapter("adapterLLMCompressor", adapter_name="default")
 
     # Merge the adapter into the base model
    # merged_model = model.merge_and_unload()
 
-    # Add cache clearing here after merging and before quantization
-    torch.cuda.empty_cache()
-
+    # Add cache clearing here after merging and before quantization 
     calibration_dataset = load_dataset("yahma/alpaca-cleaned", split="train[:1000]")
 
     calibration_dataset = calibration_dataset.map(data_processing, batched=True)
@@ -166,7 +163,6 @@ if __name__ == "__main__":
         return tokenizer(sample["text"], padding=False, max_length=512, truncation=True, add_special_tokens=True)
 
     calibration_dataset = calibration_dataset.map(tokenize, batched=True, remove_columns=["instruction", "input", "output"])
-
 
     # Quantization recipe (experiment with schemes like W4A4, W8A8, etc.)
     gtpq_recipe = [
@@ -202,7 +198,9 @@ if __name__ == "__main__":
         "LLMCompressorInferenceQuantized"
     )
 
-    #Better to explicity move to GPU as inputs are in GPU. Otherwise mismatch might occur where inputs are on GPU and model is on CPU.
+    model = get_peft_model(model, lora_config)
+
+    # Better to explicitly move to GPU as inputs are in GPU. Otherwise mismatch might occur where inputs are on GPU and model is on CPU.
     model = model.to("cuda")
 
     model.eval()
@@ -290,7 +288,7 @@ if __name__ == "__main__":
     torch.cuda.synchronize()  
     vllm_end_time = time.time()
 
-    print(f"VLLM Inference time: {vllm_end_time - vllm_start_time:.2f} seconds")
+    print(f"VLLM Inference time: {vllm_end_time - vllm_start_time:.5f} seconds")
     print(f"VLLM Response: {response[0].outputs[0].text}")
     print(f"VLLM Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
 
