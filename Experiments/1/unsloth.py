@@ -13,15 +13,17 @@ import psutil
 import os
 import gc
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 
 if __name__ == "__main__":
 
     # Load the smallest Qwen model compatible with Unsloth
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name="Qwen/Qwen2-0.5B",  # Smallest Qwen2 variant (0.5B params)
-        max_seq_length=512,
+       # max_seq_length=512,
         dtype=None,
-        load_in_4bit=True,  # Use 4-bit during training to reduce memory
+     #   load_in_4bit=True,  # Use 4-bit during training to reduce memory
+        device_map="auto",
     )
 
     if tokenizer.pad_token is None:
@@ -49,15 +51,19 @@ if __name__ == "__main__":
         texts = []
 
         for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-            text = f"### Instruction:\n{instruction}\n"
-            if input_text:
-                text += f"### Input:\n{input_text}\n"
-            text += f"### Response:\n{output_text}\n<|endoftext|>"
+            # Structure as a chat with system, user, and assistant
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
+                {"role": "assistant", "content": output_text}
+            ]
+            # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
+            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
             texts.append(text)
         
         return {"text": texts}
 
-    dataset = load_dataset("yahma/alpaca-cleaned", split="train[:5]")
+    dataset = load_dataset("yahma/alpaca-cleaned", split="train[:10000]")
 
     dataset = dataset.map(data_processing, batched=True)
 
@@ -102,21 +108,19 @@ if __name__ == "__main__":
     print(f"{train_time_end - train_time_start} seconds used for training.")
     print(f"Peak reserved memory = {round(reserved_memory / 1024 / 1024 / 1024, 3)} GB.")
 
-    torch.cuda.empty_cache()
-
     # Save the adapter and tokenizer separately (Unsloth handles base model loading)
     model.save_pretrained("adapterUnsloth")
     tokenizer.save_pretrained("adapterUnsloth")
 
     torch.cuda.empty_cache()
-    gc.collect()  # Clean up memory after training
+    #gc.collect()  # Clean up memory after training
 
     # Reload for inference (simplified for small model; no heavy offloading needed)
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name="adapterUnsloth",
-        max_seq_length=512,
+       # max_seq_length=512,
         dtype=None,
-        load_in_4bit=True,
+       # load_in_4bit=True,
         device_map="auto"  # Auto device placement
     )
 
@@ -162,8 +166,8 @@ if __name__ == "__main__":
     inputs = tokenizer(
     [
         alpaca_prompt.format(
-            "Continue the fibonnaci sequence.",  # instruction
-            "1, 1, 2, 3, 5, 8",  # input
+            "Explain what is photosynthesis in simple terms.",  # instruction
+            "",  # input
             "",  # output - leave this blank for generation!
         )
     ], return_tensors="pt").to("cuda")
@@ -177,6 +181,7 @@ if __name__ == "__main__":
     with torch.no_grad():
         _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
 
+    torch.cuda.synchronize()
     end_time = time.time()
 
     print(f"\nInference Metrics:")
@@ -187,16 +192,20 @@ if __name__ == "__main__":
 
     torch.cuda.empty_cache()
 
-    merged_model = model.merge_and_unload()
-    merged_model.save_pretrained("mergedUnsloth")
-    tokenizer.save_pretrained("mergedUnsloth")
+    # merged_model = model.merge_and_unload()
+    # merged_model.save_pretrained("mergedUnsloth")
+    # tokenizer.save_pretrained("mergedUnsloth")
 
 
-    vllm_model = LLM(
-            model="mergedUnsloth",
-            gpu_memory_utilization=0.3, #reduce for avoiding OOM errors, increase for faster inference if you have enough GPU memory
-            enforce_eager=True,  # Disable advanced optimizations like CUDA Graphs to reduce temp allocations
-        )
+    # vllm_model = LLM(
+    #         model="mergedUnsloth",
+    #         gpu_memory_utilization=0.3, #reduce for avoiding OOM errors, increase for faster inference if you have enough GPU memory
+    #         #enforce_eager=True,  # Disable advanced optimizations like CUDA Graphs to reduce temp allocations
+    #     )
+
+    #vLLM can be used without merging the adapter
+
+    vllm_model = LLM(model="Qwen/Qwen2-0.5B", enable_lora=True, gpu_memory_utilization=0.3)
 
     sampling_params = SamplingParams(
         temperature=0.5,
@@ -205,19 +214,18 @@ if __name__ == "__main__":
     )
 
     prompt = alpaca_prompt.format(
-        "Continue the fibonnaci sequence.",
-        "1, 1, 2, 3, 5, 8",
+        "Explain what is photosynthesis in simple terms.",
+        "",
         ""
     )
 
     torch.cuda.empty_cache()
-    gc.collect()  
 
     torch.cuda.reset_peak_memory_stats(device=0)
 
     vllm_start_time = time.time()
 
-    response = vllm_model.generate([prompt], sampling_params=sampling_params)
+    response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request=LoRARequest("adapter", 1, "adapterUnsloth")) #
 
     torch.cuda.synchronize()  
     vllm_end_time = time.time()
