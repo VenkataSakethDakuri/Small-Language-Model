@@ -68,7 +68,7 @@ if __name__ == "__main__":
         return {"text": texts}
 
 
-    dataset = load_dataset("yahma/alpaca-cleaned", split="train[:1]")
+    dataset = load_dataset("yahma/alpaca-cleaned", split="train[:10000]")
     dataset = dataset.map(data_processing, batched=True)
 
     def tokenize_function(examples):
@@ -138,15 +138,15 @@ if __name__ == "__main__":
     # Load the base model and apply the saved adapter
     model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=None, device_map="auto")
     model = get_peft_model(model, lora_config)
-    model.load_adapter("adapterLLMCompressor", adapter_name="default")
+   # model.load_adapter("adapterLLMCompressor", adapter_name="default")
 
     # Merge the adapter into the base model
-    merged_model = model.merge_and_unload()
+   # merged_model = model.merge_and_unload()
 
     # Add cache clearing here after merging and before quantization
     torch.cuda.empty_cache()
 
-    calibration_dataset = load_dataset("yahma/alpaca-cleaned", split="train[:1]")
+    calibration_dataset = load_dataset("yahma/alpaca-cleaned", split="train[:1000]")
 
     calibration_dataset = calibration_dataset.map(data_processing, batched=True)
 
@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     # Apply quantization
     oneshot(
-        model=merged_model,
+        model=model,
         dataset=calibration_dataset,
         recipe=gtpq_recipe,
         output_dir="LLMCompressorInferenceQuantized"
@@ -209,9 +209,10 @@ if __name__ == "__main__":
 
     def get_model_size(model):
         params = sum(p.numel() for p in model.parameters())
-        size_mb = params * 4 / (1024 * 1024)  # Assume 4 bytes per param
+        size_mb = torch.cuda.memory_allocated() / (1024 * 1024)
         return params, size_mb
 
+    torch.cuda.reset_peak_memory_stats(device=0)
     # Measure model size
     param_count, model_size_mb = get_model_size(model)
 
@@ -232,8 +233,8 @@ if __name__ == "__main__":
     inputs = tokenizer(
     [
         alpaca_prompt.format(
-            "Continue the fibonnaci sequence.",  # instruction
-            "1, 1, 2, 3, 5, 8",  # input
+            "Explain what is photosynthesis in simple terms",  # instruction
+            "",  # input
             "",  # output - leave this blank for generation!
         )
     ], return_tensors="pt").to("cuda")
@@ -245,8 +246,9 @@ if __name__ == "__main__":
     start_time = time.time()
 
     with torch.no_grad():
-        _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128, eos_token=None)
+        _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
 
+    torch.cuda.synchronize()
     end_time = time.time()
 
     print(f"\nInference Metrics:")
@@ -262,7 +264,7 @@ if __name__ == "__main__":
     vllm_model = LLM(
         model="LLMCompressorInferenceQuantized",
         gpu_memory_utilization=0.3, #reduce for avoiding OOM errors, increase for faster inference if you have enough GPU memory
-        enforce_eager=True,  # Disable advanced optimizations like CUDA Graphs to reduce temp allocations
+        #enforce_eager=True,  # Disable advanced optimizations like CUDA Graphs to reduce temp allocations
     )
 
     sampling_params = SamplingParams(
@@ -272,13 +274,12 @@ if __name__ == "__main__":
     )
 
     prompt = alpaca_prompt.format(
-        "Continue the fibonnaci sequence.",
-        "1, 1, 2, 3, 5, 8",
+        "Explain what is photosynthesis in simple terms",
+        "",
         ""
     )
 
     torch.cuda.empty_cache()
-    gc.collect()  
 
     torch.cuda.reset_peak_memory_stats(device=0)
 

@@ -42,6 +42,22 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 
+# def data_processing(training_data):
+#     instructions = training_data["instruction"]
+#     inputs = training_data["input"]
+#     outputs = training_data["output"]
+#     texts = []
+
+#     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
+#         text = f"### Instruction:\n{instruction}\n"
+#         if input_text:
+#             text += f"### Input:\n{input_text}\n"
+#         text += f"### Response:\n{output_text}\n<|endoftext|>"
+#         texts.append(text)
+    
+#     return {"text": texts}
+
+
 def data_processing(training_data):
     instructions = training_data["instruction"]
     inputs = training_data["input"]
@@ -49,15 +65,19 @@ def data_processing(training_data):
     texts = []
 
     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-        text = f"### Instruction:\n{instruction}\n"
-        if input_text:
-            text += f"### Input:\n{input_text}\n"
-        text += f"### Response:\n{output_text}\n<|endoftext|>"
+        # Structure as a chat with system, user, and assistant
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
+            {"role": "assistant", "content": output_text}
+        ]
+        # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
+        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
         texts.append(text)
     
     return {"text": texts}
 
-dataset = load_dataset("yahma/alpaca-cleaned", split="train[:25000]")
+dataset = load_dataset("yahma/alpaca-cleaned", split="train[:10000]")
 
 dataset = dataset.map(data_processing, batched=True)
 
@@ -77,7 +97,7 @@ training_args = TrainingArguments(
     per_device_train_batch_size=2,
     gradient_accumulation_steps=4,
     warmup_steps=5,
-    num_train_epochs=5,
+    num_train_epochs=1,
     learning_rate=2e-4,
     logging_steps=1,
     optim="adamw_8bit",
@@ -111,8 +131,6 @@ torch.cuda.empty_cache()
 
 used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
 
-torch.cuda.empty_cache()
-
 print("Training Metrics:")
 print(f"{train_time_start} - {train_time_end} seconds used for training.")
 print(f"Peak reserved memory = {used_memory} GB.")
@@ -127,7 +145,7 @@ base_model = AutoModelForCausalLM.from_pretrained(
     device_map="auto"
 )
 
-model = PeftModel.from_pretrained(base_model, "adapterRegular")
+model = PeftModel.from_pretrained(base_model, "adapterRegular", device_map="auto") #not merging , creates a wrapper 
 tokenizer = AutoTokenizer.from_pretrained("adapterRegular")
 
 alpaca_prompt = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
@@ -184,6 +202,7 @@ start_time = time.time()
 with torch.no_grad():
     _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
 
+torch.cuda.synchronize()
 end_time = time.time()
 
 print(f"\nInference Metrics:")
