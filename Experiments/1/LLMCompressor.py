@@ -253,7 +253,7 @@ if __name__ == "__main__":
 
     print(f"\nInference Metrics:")
     print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
-    print(f"Time to first token: {text_streamer.first_token_time - start_time:.2f} seconds")
+    print(f"Time to first token: {text_streamer.first_token_time - start_time:.5f} seconds")
     print(f"Inference time: {end_time - start_time:.2f} seconds")
     print(f"Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
 

@@ -132,7 +132,7 @@ torch.cuda.empty_cache()
 used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
 
 print("Training Metrics:")
-print(f"{train_time_start} - {train_time_end} seconds used for training.")
+print(f"{train_time_start - train_time_end} seconds used for training.")
 print(f"Peak reserved memory = {used_memory} GB.")
 
 model.save_pretrained("adapterRegular")
