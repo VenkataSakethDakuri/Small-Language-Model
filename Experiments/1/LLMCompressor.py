@@ -49,21 +49,36 @@ if __name__ == "__main__":
     )
 
     
-    def data_processing(training_data):
+    # def data_processing(training_data):
+    #     instructions = training_data["instruction"]
+    #     inputs = training_data["input"]
+    #     outputs = training_data["output"]
+    #     texts = []
+
+    #     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
+    #         # Structure as a chat with system, user, and assistant
+    #         messages = [
+    #             {"role": "system", "content": "You are a helpful assistant."},
+    #             {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
+    #             {"role": "assistant", "content": output_text}
+    #         ]
+    #         # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
+    #         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    #         texts.append(text)
+        
+    #     return {"text": texts}
+
+    def data_processing(training_data): 
         instructions = training_data["instruction"]
         inputs = training_data["input"]
         outputs = training_data["output"]
         texts = []
 
         for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-            # Structure as a chat with system, user, and assistant
-            messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
-                {"role": "assistant", "content": output_text}
-            ]
-            # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
-            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+            text = f"### Instruction:\n{instruction}\n"
+            if input_text:
+                text += f"### Input:\n{input_text}\n"
+            text += f"### Response:\n{output_text}\n<|endoftext|>"
             texts.append(text)
         
         return {"text": texts}
@@ -195,7 +210,8 @@ if __name__ == "__main__":
 
     # Load the quantized model
     model = SparseAutoModelForCausalLM.from_pretrained(
-        "LLMCompressorInferenceQuantized"
+        "LLMCompressorInferenceQuantized",
+        load_in_4bit = False
     )
 
     model = get_peft_model(model, lora_config)
@@ -263,6 +279,7 @@ if __name__ == "__main__":
         model="LLMCompressorInferenceQuantized",
         gpu_memory_utilization=0.3, #reduce for avoiding OOM errors, increase for faster inference if you have enough GPU memory
         #enforce_eager=True,  # Disable advanced optimizations like CUDA Graphs to reduce temp allocations
+        enable_lora = True
     )
 
     sampling_params = SamplingParams(
@@ -283,7 +300,7 @@ if __name__ == "__main__":
 
     vllm_start_time = time.time()
 
-    response = vllm_model.generate([prompt], sampling_params=sampling_params)
+    response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request = LoRARequest(response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request=LoRARequest("adapterLLMC", 2, "adapterLLMCompressor"))) )
 
     torch.cuda.synchronize()  
     vllm_end_time = time.time()

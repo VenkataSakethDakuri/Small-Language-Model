@@ -42,22 +42,6 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 
-# def data_processing(training_data):
-#     instructions = training_data["instruction"]
-#     inputs = training_data["input"]
-#     outputs = training_data["output"]
-#     texts = []
-
-#     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-#         text = f"### Instruction:\n{instruction}\n"
-#         if input_text:
-#             text += f"### Input:\n{input_text}\n"
-#         text += f"### Response:\n{output_text}\n<|endoftext|>"
-#         texts.append(text)
-    
-#     return {"text": texts}
-
-
 def data_processing(training_data):
     instructions = training_data["instruction"]
     inputs = training_data["input"]
@@ -65,17 +49,33 @@ def data_processing(training_data):
     texts = []
 
     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-        # Structure as a chat with system, user, and assistant
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
-            {"role": "assistant", "content": output_text}
-        ]
-        # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
-        text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        text = f"### Instruction:\n{instruction}\n"
+        if input_text:
+            text += f"### Input:\n{input_text}\n"
+        text += f"### Response:\n{output_text}\n<|endoftext|>"
         texts.append(text)
     
     return {"text": texts}
+
+
+# def data_processing(training_data):
+#     instructions = training_data["instruction"]
+#     inputs = training_data["input"]
+#     outputs = training_data["output"]
+#     texts = []
+
+#     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
+#         # Structure as a chat with system, user, and assistant
+#         messages = [
+#             {"role": "system", "content": "You are a helpful assistant."},
+#             {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
+#             {"role": "assistant", "content": output_text}
+#         ]
+#         # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
+#         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+#         texts.append(text)
+    
+#     return {"text": texts}
 
 dataset = load_dataset("yahma/alpaca-cleaned", split="train[:10000]")
 

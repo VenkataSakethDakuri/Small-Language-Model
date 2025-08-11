@@ -44,6 +44,25 @@ if __name__ == "__main__":
         random_state=108
     )
 
+    # def data_processing(training_data):
+    #     instructions = training_data["instruction"]
+    #     inputs = training_data["input"]
+    #     outputs = training_data["output"]
+    #     texts = []
+
+    #     for instruction, input_text, output_text in zip(instructions, inputs, outputs):
+    #         # Structure as a chat with system, user, and assistant
+    #         messages = [
+    #             {"role": "system", "content": "You are a helpful assistant."},
+    #             {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
+    #             {"role": "assistant", "content": output_text}
+    #         ]
+    #         # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
+    #         text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    #         texts.append(text)
+        
+    #     return {"text": texts}
+
     def data_processing(training_data):
         instructions = training_data["instruction"]
         inputs = training_data["input"]
@@ -51,17 +70,15 @@ if __name__ == "__main__":
         texts = []
 
         for instruction, input_text, output_text in zip(instructions, inputs, outputs):
-            # Structure as a chat with system, user, and assistant
-            messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": f"{instruction}\n{input_text}" if input_text else instruction},
-                {"role": "assistant", "content": output_text}
-            ]
-            # Apply Qwen2's chat template (assumes tokenizer has apply_chat_template)
-            text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+            text = f"### Instruction:\n{instruction}\n"
+            if input_text:
+                text += f"### Input:\n{input_text}\n"
+            text += f"### Response:\n{output_text}\n<|endoftext|>"
             texts.append(text)
         
         return {"text": texts}
+
+
 
     dataset = load_dataset("yahma/alpaca-cleaned", split="train[:10000]")
 
@@ -230,7 +247,7 @@ if __name__ == "__main__":
     torch.cuda.synchronize()  
     vllm_end_time = time.time()
 
-    print(f"VLLM Inference time: {vllm_end_time - vllm_start_time:.2f} seconds")
+    print(f"VLLM Inference time: {vllm_end_time - vllm_start_time:.5f} seconds")
     print(f"VLLM Response: {response[0].outputs[0].text}")
     print(f"VLLM Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
 
