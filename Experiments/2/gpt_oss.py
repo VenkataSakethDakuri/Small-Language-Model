@@ -1,0 +1,154 @@
+from sympy import trunc
+import torch
+from transformers import (
+    AutoTokenizer, 
+    AutoModelForCausalLM, 
+    TrainingArguments, 
+    Trainer,
+    DataCollatorForLanguageModeling,
+    TextStreamer
+)
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel
+from datasets import load_dataset
+import time
+
+tokenizer = AutoTokenizer.from_pretrained("openai/gpt-oss-20b")
+model = AutoModelForCausalLM.from_pretrained("openai/gpt-oss-20b", device_map="auto")
+
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    inference_mode=False,
+    r=8,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    lora_alpha=16,
+    lora_dropout=0, #dropout not used when inference_mode=True
+    bias="none"
+)
+
+model = get_peft_model(model, lora_config)
+
+def data_processing():
+    pass
+
+
+#todo
+
+
+
+
+
+
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False, #true for bert-like models, false for gpt-like models
+    pad_to_multiple_of=8  
+)
+
+training_args = TrainingArguments(
+    output_dir="TrainingGPT_OSS",
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=4,
+    warmup_steps=5,
+    num_train_epochs=1,
+    learning_rate=2e-4,
+    logging_steps=1,
+    optim="adamw_8bit",
+    weight_decay=0.01,
+    lr_scheduler_type="linear",
+    seed=108,
+    report_to="none",
+    save_strategy="epoch",
+    dataloader_drop_last=False,
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_dataset,
+    data_collator=data_collator,
+    tokenizer=tokenizer,
+)
+
+torch.cuda.reset_peak_memory_stats(device=0)
+
+train_time_start = time.time()
+
+trainer_result = trainer.train()
+
+torch.cuda.synchronize()
+
+train_time_end = time.time()
+
+torch.cuda.empty_cache()
+
+used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
+
+print("Training Metrics:")
+print(f"{train_time_start - train_time_end} seconds used for training.")
+print(f"Peak reserved memory = {used_memory} GB.")
+
+model.save_pretrained("adapterGPT_OSS")
+tokenizer.save_pretrained("adapterGPT_OSS")
+
+torch.cuda.empty_cache()
+
+base_model = AutoModelForCausalLM.from_pretrained(
+    "Qwen/Qwen2-0.5B",
+    device_map="auto"
+)
+
+model = PeftModel.from_pretrained(base_model, "adapterGPT_OSS", device_map="auto") #not merging , creates a wrapper 
+tokenizer = AutoTokenizer.from_pretrained("adapterGPT_OSS")
+
+#todo
+
+model.eval()
+
+def get_model_size(model):
+    params = sum(p.numel() for p in model.parameters())
+    size_mb = torch.cuda.memory_allocated() / (1024 * 1024)
+    return params, size_mb
+
+torch.cuda.reset_peak_memory_stats(device=0)
+
+param_count, model_size_mb = get_model_size(model)
+
+# Custom text streamer to measure time to first token
+class CustomTextStreamer(TextStreamer):
+    def __init__(self, tokenizer, **kwargs):
+        super().__init__(tokenizer, **kwargs)
+        self.first_token_time = 0
+        self.flag = False
+    
+    def put(self, value):
+        if not self.flag:
+            self.first_token_time = time.time()
+            self.flag = True
+        
+        super().put(value)
+
+#todo
+
+text_streamer = CustomTextStreamer(tokenizer)
+
+torch.cuda.reset_peak_memory_stats(device=0)
+
+start_time = time.time()
+
+with torch.no_grad():
+    _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
+
+torch.cuda.synchronize()
+end_time = time.time()
+
+print(f"\nInference Metrics:")
+print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
+print(f"Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
+print(f"Time to first token: {text_streamer.first_token_time - start_time:.5f} seconds")
+print(f"Inference time: {end_time - start_time:.2f} seconds")
+
+torch.cuda.empty_cache()
