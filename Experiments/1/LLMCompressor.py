@@ -15,6 +15,7 @@ from llmcompressor.transformers import SparseAutoModelForCausalLM
 from llmcompressor.modifiers.quantization import GPTQModifier
 from llmcompressor.modifiers.smoothquant import SmoothQuantModifier
 from vllm import LLM, SamplingParams
+from vllm.lora.request import LoRARequest
 from peft import LoraConfig, get_peft_model, TaskType
 import gc
 from typing import Any
@@ -300,7 +301,7 @@ if __name__ == "__main__":
 
     vllm_start_time = time.time()
 
-    response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request = LoRARequest(response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request=LoRARequest("adapterLLMC", 2, "adapterLLMCompressor"))) )
+    response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request = LoRARequest("adapterLLMC", 2, "adapterLLMCompressor"))
 
     torch.cuda.synchronize()  
     vllm_end_time = time.time()
