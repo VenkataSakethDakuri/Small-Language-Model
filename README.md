@@ -1,11 +1,11 @@
 # Small Language Model
 
 ## Prerequisites
-Install all dependencies from requirements.txt using:
+- Install all dependencies from requirements.txt using:
 ```bash
 pip install -r requirements.txt
 ```
-Thirst to explore 😊
+- Thirst to explore 😊
 
 ## Getting Started
 A small language model is a compact AI language model with far fewer parameters (typically millions to a few billion) designed to perform targeted NLP tasks efficiently on limited hardware, trading broad capability for lower latency, cost, and easier deployment.
