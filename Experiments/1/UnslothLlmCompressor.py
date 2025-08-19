@@ -13,8 +13,6 @@ from trl import SFTTrainer, SFTConfig
 from transformers import TextStreamer
 from datasets import load_dataset
 import time
-import psutil
-import os
 from llmcompressor.transformers import oneshot
 from llmcompressor.transformers import SparseAutoModelForCausalLM
 from llmcompressor.modifiers.quantization import GPTQModifier

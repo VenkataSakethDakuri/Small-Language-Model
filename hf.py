@@ -23,7 +23,7 @@ def size_checker(path: str = "./hf_model") -> int:
 
 
 
-model_id = "sshleifer/tiny-distilroberta-base"
+model_id = "distilbert/distilgpt2"
 
 download_model(model_id)
 

@@ -9,9 +9,6 @@ from trl import SFTTrainer, SFTConfig
 from transformers import TextStreamer
 from datasets import load_dataset
 import time
-import psutil
-import os
-import gc
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 

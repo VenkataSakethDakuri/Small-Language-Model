@@ -8,8 +8,6 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForLanguageModeling, TextStreamer
 from datasets import load_dataset
 import time
-import psutil
-import os
 from llmcompressor.transformers import oneshot
 from llmcompressor.transformers import SparseAutoModelForCausalLM
 from llmcompressor.modifiers.quantization import GPTQModifier
@@ -17,8 +15,7 @@ from llmcompressor.modifiers.smoothquant import SmoothQuantModifier
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 from peft import LoraConfig, get_peft_model, TaskType
-import gc
-from typing import Any
+
 
 
 

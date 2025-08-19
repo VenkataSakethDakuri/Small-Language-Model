@@ -16,8 +16,6 @@ from transformers import (
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel
 from datasets import load_dataset
 import time
-import psutil
-import os
 
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-0.5B")
 model = AutoModelForCausalLM.from_pretrained(
