@@ -1,0 +1,26 @@
+# Core ML Libraries
+torch>=2.0.0
+transformers>=4.30.0
+datasets>=2.12.0
+tokenizers>=0.13.0
+
+# Model optimization and quantization
+peft>=0.4.0
+llmcompressor>=0.2.0
+
+# High-performance inference
+vllm>=0.2.0
+
+# Training and fine-tuning
+trl>=0.7.0
+unsloth>=2024.1
+
+# Hugging Face ecosystem
+huggingface_hub>=0.15.0
+accelerate>=0.20.0
+
+# Scientific computing
+numpy>=1.24.0
+sympy>=1.12
+
+
