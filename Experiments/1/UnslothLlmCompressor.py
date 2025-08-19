@@ -1,6 +1,6 @@
 """
 This code is an example of pipeline using the Unsloth and LLM Compressor library with LoRA adapters. It stores the adapter separately
-and later is used for inference. Uses VLLM for inference.
+and later is used for inference. Uses VLLM for inference. Uses Alpaca-cleaned dataset for training.
 """
 
 #Currently getting File "Qwen2ForCausalLM_8758051722619_autowrapped", line 4, in <module>

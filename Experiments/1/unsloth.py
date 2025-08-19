@@ -1,6 +1,7 @@
 """
 This code is an example of a pipeline using the Unsloth library with LoRA adapters. It stores the adapter separately
 and later is used for inference. Adapted for Qwen2-0.5B (smallest compatible Qwen model).
+Uses Alpaca-cleaned dataset for training.
 """
 
 import torch

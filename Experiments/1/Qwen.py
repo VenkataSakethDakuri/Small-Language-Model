@@ -1,6 +1,7 @@
 """
 This code is an example of pipeline using standard transformers and PEFT libraries with LoRA adapters. 
 It stores the adapter separately and later is used for inference. No quantization is used.
+Uses Alpaca-cleaned dataset for training.
 """
 
 from sympy import trunc

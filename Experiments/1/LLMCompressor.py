@@ -1,7 +1,7 @@
 """
 This code is a pipeline for making small language models using the LLM Compressor library with LoRA adapters. It stores the adapter separately
-and later is used for inference. VLLM is used for inference. Adapted for Qwen/Qwen2-0.5B (smallest compatible Qwen model). First quantize the base 
-model and then apply Lora. 
+and later is used for inference. VLLM is used for inference. Adapted for Qwen/Qwen2-0.5B (smallest compatible Qwen model). First quantize the base
+model and then apply Lora. Uses Alpaca-cleaned dataset for training.
 """
 
 import torch
