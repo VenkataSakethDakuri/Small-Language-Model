@@ -10,6 +10,12 @@ from transformers import (
     AutoTokenizer, 
     AutoModelForCausalLM
 )
+from pydantic import BaseModel
+
+class Output(BaseModel):
+    Problem: str
+    first_score: int
+    second_score: int
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -49,18 +55,24 @@ def compare_solutions(finetuned_output, base_output, problem, client):
     Give the Final answer in this exact JSON format:
     
     {{
-        "problem": {problem},
-        "1st Solution": [score 0-10],
-        "2nd Solution": [score 0-10],
+        "problem": "{problem}",
+        "first_score": 5,
+        "second_score": 5
     }}
+
+    Replace the numbers with the actual values.
     """
 
     response = client.models.generate_content(
         model="gemini-2.5-pro", 
-        contents=prompt
+        contents=prompt,
+        config={
+        "response_mime_type": "application/json",
+        "response_schema": Output,
+    }
     )
+    comparision_result = response.text
 
-    comparision_result = json.loads(response.text)
     return comparision_result
 
 for i in range(len(loaded_outputs)):
@@ -84,7 +96,7 @@ for i in range(len(loaded_outputs)):
 
     inputs = tokenizer([prompt], return_tensors="pt").to("cuda")
 
-    base_model_output = model.generate(**inputs, max_new_tokens=128, add_generation_prompt=True)
+    base_model_output = model.generate(**inputs, max_new_tokens=128)
 
     base_model_output = tokenizer.decode(base_model_output[0], skip_special_tokens=True)
 
@@ -97,9 +109,12 @@ with open("base_model_outputs.json", "w") as f:
     json.dump(base_model_outputs, f)
 
 # Now we have outputs from both the finetuned model and the base model. We can use Gemini to compare them.
-client = genai.client(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 for i in range(len(loaded_outputs)):
     result = compare_solutions(loaded_outputs[i]['solution'], base_model_outputs[i]['solution'], loaded_outputs[i]['problem'], client)
     comparision_results.append(result)
     time.sleep(10) # To avoid rate limiting
+
+with open("comparison_results.json", "w") as f:
+    json.dump(comparision_results, f, indent=2)
