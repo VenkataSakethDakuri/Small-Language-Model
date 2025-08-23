@@ -23,4 +23,14 @@ accelerate>=0.20.0
 numpy>=1.24.0
 sympy>=1.12
 
+# Data processing and analysis
+pandas>=2.0.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Google AI integration
+google-genai>=0.5.0
+
+
 
