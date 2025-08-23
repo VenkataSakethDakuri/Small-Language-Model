@@ -1,4 +1,7 @@
-from sympy import trunc
+"""
+This is pipeline for finetuning GPT-OSS-20b model using Lora. Uses a Math dataset from https://github.com/ziye2chen/DEMI-MathAnalysis 
+for finetuning. Stores the output of finetuned model for llm as a judge evaluation.
+"""
 import torch
 from transformers import (
     AutoTokenizer, 
@@ -9,8 +12,10 @@ from transformers import (
     TextStreamer
 )
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel
-from datasets import load_dataset
+from datasets import Dataset
 import time
+import pandas as pd
+import json
 
 tokenizer = AutoTokenizer.from_pretrained("openai/gpt-oss-20b")
 model = AutoModelForCausalLM.from_pretrained("openai/gpt-oss-20b", device_map="auto")
@@ -31,16 +36,45 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 
-def data_processing():
-    pass
+def load_csv(file_path):
+    return pd.read_csv(file_path)
 
 
-#todo
+#load training data
+training_data = load_csv("pretraining_data.csv")
 
+#preprocessing data
+processed_data = []
+for _, row in training_data.iterrows():
+    Problem = row['Problem']
+    Solution = row['Solution']
+    
+    messages = [
+        {
+            "role": "system",
+            "content": "Solve mathematical problems with logically complete and formally justified solutions:"
+        },
+        {
+            "role": "user",
+            "content": f"### Problem:\n{row['Problem']}"
+        },
+        {
+            "role": "assistant", 
+            "content": f"### Solution:\n{row['Solution']}"
+        }
+    ]
+#add generating prompt controls whether to add a prompt token that signals where the assistant should start responding, for training we want complete example so False, true in inference
+#Tokenize here is false, later the trainer will automatically tokenize the input.
+#add special tokens is false as chat template will anyways add the required tokens
+    formatted_text = tokenizer.apply_chat_template(messages, add_generation_prompt=False, tokenize=False, add_special_tokens=False)
+    processed_data.append(formatted_text)
 
+dataset = Dataset.from_dict({"text": processed_data})
 
+def tokenize_dataset(examples):
+    return tokenizer(examples["text"], padding="max_length", truncation=True)
 
-
+dataset = dataset.map(tokenize_dataset, batched=True)
 
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer,
@@ -68,7 +102,7 @@ training_args = TrainingArguments(
 trainer = Trainer(
     model=model,
     args=training_args,
-    train_dataset=tokenized_dataset,
+    train_dataset=dataset,
     data_collator=data_collator,
     tokenizer=tokenizer,
 )
@@ -88,7 +122,7 @@ torch.cuda.empty_cache()
 used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
 
 print("Training Metrics:")
-print(f"{train_time_start - train_time_end} seconds used for training.")
+print(f"{train_time_end - train_time_start} seconds used for training.")
 print(f"Peak reserved memory = {used_memory} GB.")
 
 model.save_pretrained("adapterGPT_OSS")
@@ -97,14 +131,12 @@ tokenizer.save_pretrained("adapterGPT_OSS")
 torch.cuda.empty_cache()
 
 base_model = AutoModelForCausalLM.from_pretrained(
-    "Qwen/Qwen2-0.5B",
+    "openai/gpt-oss-20b",
     device_map="auto"
 )
 
 model = PeftModel.from_pretrained(base_model, "adapterGPT_OSS", device_map="auto") #not merging , creates a wrapper 
 tokenizer = AutoTokenizer.from_pretrained("adapterGPT_OSS")
-
-#todo
 
 model.eval()
 
@@ -131,19 +163,56 @@ class CustomTextStreamer(TextStreamer):
         
         super().put(value)
 
-#todo
+testing_dataset = pd.read_csv("benchmark_data.csv")
 
-text_streamer = CustomTextStreamer(tokenizer)
-
-torch.cuda.reset_peak_memory_stats(device=0)
+generated_outputs = []
 
 start_time = time.time()
 
-with torch.no_grad():
-    _ = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128)
+for i in range(len(testing_dataset)):
+    row = testing_dataset.iloc[i]
 
+    messages = [
+        {
+            "role": "system",
+            "content": "Solve the following problem with logically complete and formally justified solutions:"
+        },
+        {
+            "role": "user", 
+            "content": f"### Problem:\n{row['Problem']}\n\n### Solution:"
+        }
+    ]
+    
+    # Apply chat template (this handles Harmony automatically)
+    prompt = tokenizer.apply_chat_template(
+        messages, 
+        tokenize=False, 
+        add_generation_prompt=True
+    )
+
+    inputs = tokenizer([prompt], return_tensors="pt").to("cuda")
+
+    text_streamer = CustomTextStreamer(tokenizer)
+
+    torch.cuda.reset_peak_memory_stats(device=0)
+
+    with torch.no_grad():
+        generated_ids = model.generate(**inputs, streamer=text_streamer, max_new_tokens=128, do_sample=False, temperature=0.5) #temperature ignored when do_sample is false
+
+        generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True) #we need manual decoding if we want to store the generated text somewhere
+    
+    # Store results
+    generated_outputs.append({
+        'problem': row['Problem'],
+        'original_solution': row['Solution'],
+        'generated_solution': generated_text,
+    })
+        
 torch.cuda.synchronize()
 end_time = time.time()
+
+with open("gpt_oss_Lora.json", "w") as f:
+    json.dump(generated_outputs, f)
 
 print(f"\nInference Metrics:")
 print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
