@@ -51,7 +51,6 @@ def compare_solutions(finetuned_output, base_output, problem, client):
     3. Mathematical rigor
     4. Completeness
 
-
     Give the Final answer in this exact JSON format:
     
     {{
@@ -62,7 +61,7 @@ def compare_solutions(finetuned_output, base_output, problem, client):
 
     Replace the numbers with the actual values.
     """
-
+    
     response = client.models.generate_content(
         model="gemini-2.5-pro", 
         contents=prompt,
