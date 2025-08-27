@@ -82,9 +82,9 @@ class DatasetFactory:
     """Factory class for creating datasets."""
     
     @staticmethod
-    def create_alpaca_dataset(split: str = "train[:10000]") -> Dataset:
-        """Create Alpaca dataset (identical to existing implementation)."""
-        return load_dataset("yahma/alpaca-cleaned", split=split)
+    def load_hf_dataset(dataset_name: str, split: str = "train[:10000]") -> Dataset:
+        """Load dataset from Hugging Face Hub."""
+        return load_dataset(dataset_name, split=split)
     
     @staticmethod
     def create_training_dataset(data, processor: DataProcessor, 
@@ -102,21 +102,21 @@ class DatasetFactory:
     
     @staticmethod
     def create_tokenized_dataset(dataset: Dataset, processor: DataProcessor, 
-                               tokenize_type: str = "standard") -> Dataset:
+                               data_type: str = "alpaca") -> Dataset:
         """Create tokenized dataset."""
-        if tokenize_type == "standard":
+        if data_type == "alpaca":
             return dataset.map(processor.tokenize_for_alpaca, batched=True, 
                              remove_columns=dataset.column_names)
-        elif tokenize_type == "math":
+        elif data_type == "math":
             return dataset.map(processor.tokenize_for_math, batched=True)
         else:
-            raise ValueError(f"Unsupported tokenize type: {tokenize_type}")
-    
+            raise ValueError(f"Unsupported tokenize type: {data_type}")
+
     @staticmethod
-    def create_calibration_dataset(split: str = "train[:1000]", 
+    def create_calibration_dataset(split: str = "train[:1000]", dataset_name: str = "yahma/alpaca-cleaned",
                                  processor: DataProcessor = None) -> Dataset:
         """Create calibration dataset for quantization."""
-        dataset = load_dataset("yahma/alpaca-cleaned", split=split)
+        dataset = load_dataset(dataset_name, split=split)
         if processor:
             dataset = dataset.map(processor.alpaca_data_processing, batched=True)
             
