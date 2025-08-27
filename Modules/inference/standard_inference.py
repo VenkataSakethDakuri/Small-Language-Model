@@ -15,8 +15,8 @@ from Modules.core.base_inference import BaseInferenceEngine, CustomTextStreamer
 class StandardInferenceEngine(BaseInferenceEngine):
     """Standard inference engine using transformers (identical to existing implementations)."""
     
-    def __init__(self, model_path: str, config: Dict[str, Any]):
-        super().__init__(model_path, config)
+    def __init__(self, lora_path: str, config: Dict[str, Any]):
+        super().__init__(lora_path, config)
     
     def load_model(self) -> None:
         """Load model for inference (identical to Qwen.py implementation)."""
@@ -27,8 +27,8 @@ class StandardInferenceEngine(BaseInferenceEngine):
             device_map="auto"
         )
         
-        self.model = PeftModel.from_pretrained(base_model, self.model_path, device_map="auto")
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+        self.model = PeftModel.from_pretrained(base_model, self.lora_path, device_map="auto")
+        self.tokenizer = AutoTokenizer.from_pretrained(self.lora_path)
         
         self.model.eval()
     

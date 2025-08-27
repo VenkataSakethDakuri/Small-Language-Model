@@ -14,16 +14,16 @@ from Modules.core.base_inference import BaseInferenceEngine, CustomTextStreamer
 class UnslothInferenceEngine(BaseInferenceEngine):
     """Unsloth inference engine (identical to Unsloth.py implementation)."""
     
-    def __init__(self, model_path: str, config: Dict[str, Any]):
-        super().__init__(model_path, config)
-    
+    def __init__(self, lora_path: str, config: Dict[str, Any]):
+        super().__init__(lora_path, config)
+
     def load_model(self) -> None:
         """Load model using Unsloth (identical to Unsloth.py implementation)."""
         self.clear_cache()
         
         # Reload for inference using Unsloth (identical to original)
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            model_name=self.model_path,
+            lora_name=self.lora_path,
             dtype=None,
             device_map="auto"
         )

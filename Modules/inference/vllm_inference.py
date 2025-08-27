@@ -15,8 +15,8 @@ from Modules.core.base_inference import BaseInferenceEngine
 class VLLMInferenceEngine(BaseInferenceEngine):
     """VLLM inference engine with LoRA support (identical to existing implementations)."""
     
-    def __init__(self, model_path: str, config: Dict[str, Any]):
-        super().__init__(model_path, config)
+    def __init__(self, lora_path: str, config: Dict[str, Any]):
+        super().__init__(lora_path, config)
         self.vllm_model = None
         self.sampling_params = None
     
@@ -25,7 +25,7 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         self.clear_cache()
         
         self.vllm_model = LLM(
-            model=self.config.get("base_model", self.model_path),
+            model=self.config.get("base_model", self.lora_path),
             gpu_memory_utilization=self.config.get("gpu_memory_utilization", 0.3),
             enable_lora=self.config.get("enable_lora", True)
         )
