@@ -17,6 +17,8 @@ class StandardInferenceEngine(BaseInferenceEngine):
     
     def __init__(self, lora_path: str, config: Dict[str, Any]):
         super().__init__(lora_path, config)
+        self.model = None
+        self.tokenizer = None
     
     def load_model(self) -> None:
         """Load model for inference (identical to Qwen.py implementation)."""
