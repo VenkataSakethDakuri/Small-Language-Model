@@ -23,15 +23,16 @@ from Modules.data.data_processor import DataProcessor
 class LoRATrainer(BaseTrainer):
     """LoRA trainer for GPT-OSS style training (identical to GPT_oss.py)."""
     
-    def __init__(self, model_name: str, config: Dict[str, Any]):
-        super().__init__(model_name, config)
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.model = None
+        self.tokenizer = None
         self.data_processor = None
     
     def setup_model(self) -> None:
         """Setup model and tokenizer (identical to GPT_oss.py implementation)."""
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map="auto")
-        
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"))
+        self.model = AutoModelForCausalLM.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"), device_map="auto")
         self.setup_tokenizer_padding()
         
         # LoRA configuration (identical to original)

@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 import torch
 import time
 from typing import Dict, Any, List, Optional
-from transformers import TextStreamer
 
 class BaseInferenceEngine(ABC):
     """Abstract base class for all inference engine implementations."""

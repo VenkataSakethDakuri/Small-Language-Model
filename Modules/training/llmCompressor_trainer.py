@@ -20,15 +20,17 @@ from Modules.data.data_processor import DataProcessor, DatasetFactory
 class CompressedTrainer(BaseTrainer):
     """LLM Compressor trainer with quantization (identical to LLMCompressor.py)."""
     
-    def __init__(self, model_name: str, config: Dict[str, Any]):
-        super().__init__(model_name, config)
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.model = None
+        self.tokenizer = None
         self.data_processor = None
         self.quantized_model_path = None
     
     def setup_model(self) -> None:
         """Setup model and tokenizer (identical to LLMCompressor.py implementation)."""
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"))
+        self.model = AutoModelForCausalLM.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"))
         
         self.setup_tokenizer_padding()
         self.data_processor = DataProcessor(self.tokenizer)
@@ -37,7 +39,7 @@ class CompressedTrainer(BaseTrainer):
         """Prepare alpaca training data."""
         processed_dataset = dataset.map(self.data_processor.alpaca_data_processing, batched=True)
         tokenized_dataset = processed_dataset.map(
-            self.data_processor.tokenize_function, 
+            self.data_processor.tokenize_for_alpaca, 
             batched=True, 
             remove_columns=processed_dataset.column_names
         )
@@ -56,7 +58,7 @@ class CompressedTrainer(BaseTrainer):
     def train_alpaca(self, dataset_split: str = "train[:10000]", **kwargs) -> Dict[str, Any]:
         """Execute alpaca training process."""
         # Load dataset
-        dataset = DatasetFactory.create_alpaca_dataset(dataset_split)
+        dataset = DatasetFactory.load_hf_dataset("yahma/alpaca-cleaned", dataset_split)
         tokenized_dataset = self.prepare_alpaca_data(dataset)
         
         # Data collator

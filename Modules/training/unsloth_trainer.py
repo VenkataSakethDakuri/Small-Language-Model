@@ -15,14 +15,16 @@ from Modules.data.data_processor import DataProcessor, DatasetFactory
 class UnslothTrainer(BaseTrainer):
     """Unsloth trainer implementation (identical to Unsloth.py)."""
     
-    def __init__(self, model_name: str, config: Dict[str, Any]):
-        super().__init__(model_name, config)
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__(config)
+        self.model = None
+        self.tokenizer = None
         self.data_processor = None
     
     def setup_model(self) -> None:
         """Setup model and tokenizer using Unsloth (identical to Unsloth.py implementation)."""
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            model_name=self.model_name,
+            model_name=self.config.get("model_name", "Qwen/Qwen2-0.5B"),
             dtype=None,
             device_map="auto",
         )
