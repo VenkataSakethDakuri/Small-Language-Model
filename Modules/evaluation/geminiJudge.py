@@ -32,9 +32,7 @@ class LLMGeminiJudgeEvaluator:
         """Setup Gemini client (identical to original implementation)."""
         load_dotenv()
         GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-        # Initialize Gemini client (implementation depends on the exact API)
-        # This would need to be adapted based on the actual Gemini client setup
-        pass
+        self.client = genai.Client(api_key=GEMINI_API_KEY)
     
     def setup_base_model(self):
         """Setup base model for comparison (identical to original implementation)."""

@@ -64,7 +64,7 @@ class DataProcessor:
         
         return processed_data
     
-    def tokenize_function(self, examples: Dict[str, List], max_length: int = 512, 
+    def tokenize_for_alpaca(self, examples: Dict[str, List], max_length: int = 512, 
                          padding: str = "max_length") -> Dict[str, Any]:
         """Tokenize examples (identical to existing implementation)."""
         return self.tokenizer(
@@ -74,9 +74,9 @@ class DataProcessor:
             max_length=max_length
         )
     
-    def tokenize_for_math(self, examples: Dict[str, List]) -> Dict[str, Any]:
+    def tokenize_for_math(self, examples: Dict[str, List],  max_length: int = 512) -> Dict[str, Any]:
         """Tokenize for math problems (GPT-OSS style)."""
-        return self.tokenizer(examples["text"], padding="max_length", truncation=True)
+        return self.tokenizer(examples["text"], padding="max_length", truncation=True, max_length=max_length)
 
 class DatasetFactory:
     """Factory class for creating datasets."""
@@ -105,7 +105,7 @@ class DatasetFactory:
                                tokenize_type: str = "standard") -> Dataset:
         """Create tokenized dataset."""
         if tokenize_type == "standard":
-            return dataset.map(processor.tokenize_function, batched=True, 
+            return dataset.map(processor.tokenize_for_alpaca, batched=True, 
                              remove_columns=dataset.column_names)
         elif tokenize_type == "math":
             return dataset.map(processor.tokenize_for_math, batched=True)
