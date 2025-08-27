@@ -10,15 +10,11 @@ from transformers import TextStreamer
 
 class BaseInferenceEngine(ABC):
     """Abstract base class for all inference engine implementations."""
-    
-    def __init__(self, model_path: str, config: Dict[str, Any]):
-        self.model_path = model_path
+
+    def __init__(self, lora_path: str, config: Dict[str, Any]):
+        self.lora_path = lora_path
         self.config = config
-        self.model = None
-        self.tokenizer = None
-        self.inference_time = 0
-        self.first_token_time = 0
-    
+
     @abstractmethod
     def load_model(self) -> None:
         """Load the model for inference."""
