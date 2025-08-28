@@ -20,17 +20,23 @@ class StandardInferenceEngine(BaseInferenceEngine):
         self.model = None
         self.tokenizer = None
     
-    def load_model(self) -> None:
+    def load_model(self, **kwargs) -> None:
         """Load model for inference (identical to Qwen.py implementation)."""
         self.clear_cache()
         
         base_model = AutoModelForCausalLM.from_pretrained(
-            self.config.get("base_model", "Qwen/Qwen2-0.5B"),
-            device_map="auto"
+            kwargs.get("base_model", self.config.get("base_model", "Qwen/Qwen2-0.5B")),
+            device_map=kwargs.get("device_map", self.config.get("device_map", "auto"))
         )
         
-        self.model = PeftModel.from_pretrained(base_model, self.lora_path, device_map="auto")
-        self.tokenizer = AutoTokenizer.from_pretrained(self.lora_path)
+        self.model = PeftModel.from_pretrained(
+            base_model, 
+            kwargs.get("lora_path", self.lora_path), 
+            device_map=kwargs.get("device_map", self.config.get("device_map", "auto"))
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            kwargs.get("tokenizer_path", kwargs.get("lora_path", self.lora_path))
+        )
         
         self.model.eval()
     
@@ -46,9 +52,9 @@ class StandardInferenceEngine(BaseInferenceEngine):
             generated_ids = self.model.generate(
                 **inputs, 
                 streamer=text_streamer, 
-                max_new_tokens=kwargs.get("max_new_tokens", 128),
-                do_sample=kwargs.get("do_sample", False),
-                temperature=kwargs.get("temperature", 0.5)
+                max_new_tokens=kwargs.get("max_new_tokens", self.config.get("max_new_tokens", 128)),
+                do_sample=kwargs.get("do_sample", self.config.get("do_sample", False)),
+                temperature=kwargs.get("temperature", self.config.get("temperature", 0.5))
             )
         
         torch.cuda.synchronize()

@@ -19,15 +19,15 @@ class UnslothInferenceEngine(BaseInferenceEngine):
         self.model = None
         self.tokenizer = None
 
-    def load_model(self) -> None:
+    def load_model(self, **kwargs) -> None:
         """Load model using Unsloth (identical to Unsloth.py implementation)."""
         self.clear_cache()
         
         # Reload for inference using Unsloth (identical to original)
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            lora_name=self.lora_path,
-            dtype=None,
-            device_map="auto"
+            lora_name=kwargs.get("lora_path", self.lora_path),
+            dtype=kwargs.get("dtype", self.config.get("dtype", None)),
+            device_map=kwargs.get("device_map", self.config.get("device_map", "auto"))
         )
         
         # Enable native 2x faster inference (identical to original)
@@ -41,14 +41,14 @@ class UnslothInferenceEngine(BaseInferenceEngine):
         text_streamer = CustomTextStreamer(self.tokenizer)
         self.reset_memory_stats()
         start_time = time.time()
-        
+                
         with torch.no_grad():
-            generated_ids = self.model.generate(
-                **inputs, 
-                streamer=text_streamer, 
-                max_new_tokens=kwargs.get("max_new_tokens", 128),
-                do_sample=kwargs.get("do_sample", False),
-                temperature=kwargs.get("temperature", 0.5)
+                generated_ids = self.model.generate(
+                    **inputs, 
+                    streamer=text_streamer, 
+                    max_new_tokens=kwargs.get("max_new_tokens", self.config.get("max_new_tokens", 128)),
+                    do_sample=kwargs.get("do_sample", self.config.get("do_sample", False)),
+                temperature=kwargs.get("temperature", self.config.get("temperature", 0.5))
             )
         
         torch.cuda.synchronize()
@@ -59,7 +59,7 @@ class UnslothInferenceEngine(BaseInferenceEngine):
         # Store metrics
         self.inference_time = end_time - start_time
         self.first_token_time = text_streamer.first_token_time - start_time
-        
+
         return generated_text
     
     def alpaca_inference(self, instruction: str, input_text: str = "", **kwargs) -> str:

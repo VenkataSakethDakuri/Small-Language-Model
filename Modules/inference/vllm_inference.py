@@ -20,21 +20,21 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         self.vllm_model = None
         self.sampling_params = None
     
-    def load_model(self) -> None:
+    def load_model(self, **kwargs) -> None:
         """Load VLLM model (identical to existing implementations)."""
         self.clear_cache()
         
         self.vllm_model = LLM(
-            model=self.config.get("base_model", self.lora_path),
-            gpu_memory_utilization=self.config.get("gpu_memory_utilization", 0.3),
-            enable_lora=self.config.get("enable_lora", True)
+            model=kwargs.get("base_model", self.config.get("base_model", self.lora_path)),
+            gpu_memory_utilization=kwargs.get("gpu_memory_utilization", self.config.get("gpu_memory_utilization", 0.3)),
+            enable_lora=kwargs.get("enable_lora", self.config.get("enable_lora", True))
         )
         
         # Setup sampling parameters (identical to original)
         self.sampling_params = SamplingParams(
-            temperature=self.config.get("temperature", 0.5),
-            max_tokens=self.config.get("max_tokens", 512),
-            stop=self.config.get("stop_tokens", ["<|end_of_text|>"])
+            temperature=kwargs.get("temperature", self.config.get("temperature", 0.5)),
+            max_tokens=kwargs.get("max_tokens", self.config.get("max_tokens", 512)),
+            stop=kwargs.get("stop_tokens", self.config.get("stop_tokens", ["<|end_of_text|>"]))
         )
     
     def generate(self, prompt: str, **kwargs) -> str:
@@ -49,18 +49,19 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         
         # Create LoRA request if adapter specified
         lora_request = None
-        if self.config.get("adapter_path"):
+        adapter_path = kwargs.get("adapter_path", self.config.get("adapter_path"))
+        if adapter_path:
             lora_request = LoRARequest(
-                self.config.get("adapter_name", "adapter"), 
-                self.config.get("adapter_id", 1), 
-                self.config["adapter_path"]
+                kwargs.get("adapter_name", self.config.get("adapter_name", "adapter")), 
+                kwargs.get("adapter_id", self.config.get("adapter_id", 1)), 
+                adapter_path
             )
         
         # Override sampling params with kwargs if provided
         sampling_params = SamplingParams(
-            temperature=kwargs.get("temperature", self.sampling_params.temperature),
-            max_tokens=kwargs.get("max_new_tokens", self.sampling_params.max_tokens),
-            stop=kwargs.get("stop_tokens", self.sampling_params.stop)
+            temperature=kwargs.get("temperature", self.config.get("temperature", self.sampling_params.temperature)),
+            max_tokens=kwargs.get("max_new_tokens", self.config.get("max_new_tokens", self.sampling_params.max_tokens)),
+            stop=kwargs.get("stop_tokens", self.config.get("stop_tokens", self.sampling_params.stop))
         )
         
         response = self.vllm_model.generate(
