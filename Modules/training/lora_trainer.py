@@ -192,7 +192,6 @@ class LoRATrainer(BaseTrainer):
         print(f"{self.training_time} seconds used for training.")
         print(f"Peak reserved memory = {self.peak_memory} GB.")
     
-    
     def save_model(self, output_dir: str) -> None:
         """Save the trained model (identical to GPT_oss.py implementation)."""
         self.model.save_pretrained(output_dir)
