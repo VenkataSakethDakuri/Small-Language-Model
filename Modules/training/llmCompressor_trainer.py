@@ -27,10 +27,14 @@ class CompressedTrainer(BaseTrainer):
         self.data_processor = None
         self.quantized_model_path = None
     
-    def setup_model(self) -> None:
+    def setup_model(self, **kwargs) -> None:
         """Setup model and tokenizer (identical to LLMCompressor.py implementation)."""
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"))
-        self.model = AutoModelForCausalLM.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"))
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            kwargs.get("model_name", self.config.get("model_name", "Qwen/Qwen2-0.5B"))
+        )
+        self.model = AutoModelForCausalLM.from_pretrained(
+            kwargs.get("model_name", self.config.get("model_name", "Qwen/Qwen2-0.5B"))
+        )
         
         self.setup_tokenizer_padding()
         self.data_processor = DataProcessor(self.tokenizer)

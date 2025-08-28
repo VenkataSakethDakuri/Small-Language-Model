@@ -21,12 +21,12 @@ class UnslothTrainer(BaseTrainer):
         self.tokenizer = None
         self.data_processor = None
     
-    def setup_model(self) -> None:
+    def setup_model(self, **kwargs) -> None:
         """Setup model and tokenizer using Unsloth (identical to Unsloth.py implementation)."""
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
-            model_name=self.config.get("model_name", "Qwen/Qwen2-0.5B"),
-            dtype=None,
-            device_map="auto",
+            model_name=kwargs.get("model_name", self.config.get("model_name", "Qwen/Qwen2-0.5B")),
+            dtype=kwargs.get("dtype", self.config.get("dtype", None)),
+            device_map=kwargs.get("device_map", self.config.get("device_map", "auto")),
         )
         
         self.setup_tokenizer_padding()
@@ -34,16 +34,16 @@ class UnslothTrainer(BaseTrainer):
         # Apply LoRA adapters (identical to original)
         self.model = FastLanguageModel.get_peft_model(
             self.model,
-            r=self.config.get("lora_r", 16),
-            target_modules=self.config.get("target_modules", 
-                ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]),
-            lora_alpha=self.config.get("lora_alpha", 16),
-            lora_dropout=self.config.get("lora_dropout", 0),
+            r=kwargs.get("lora_r", self.config.get("lora_r", 16)),
+            target_modules=kwargs.get("target_modules", self.config.get("target_modules", 
+                ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"])),
+            lora_alpha=kwargs.get("lora_alpha", self.config.get("lora_alpha", 16)),
+            lora_dropout=kwargs.get("lora_dropout", self.config.get("lora_dropout", 0)),
             bias="none",
-            use_gradient_checkpointing="unsloth",
-            use_rslora=False,
-            loftq_config=None,
-            random_state=self.config.get("seed", 108)
+            use_gradient_checkpointing=kwargs.get("use_gradient_checkpointing", self.config.get("use_gradient_checkpointing", "unsloth")),
+            use_rslora=kwargs.get("use_rslora", self.config.get("use_rslora", False)),
+            loftq_config=kwargs.get("loftq_config", self.config.get("loftq_config", None)),
+            random_state=kwargs.get("seed", self.config.get("seed", 108))
         )
         
         self.data_processor = DataProcessor(self.tokenizer)

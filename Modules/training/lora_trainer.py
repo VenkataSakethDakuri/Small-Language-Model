@@ -29,7 +29,7 @@ class LoRATrainer(BaseTrainer):
         self.tokenizer = None
         self.data_processor = None
     
-    def setup_model(self) -> None:
+    def setup_model(self, **kwargs) -> None:
         """Setup model and tokenizer (identical to GPT_oss.py implementation)."""
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"))
         self.model = AutoModelForCausalLM.from_pretrained(self.config.get("model_name", "Qwen/Qwen2-0.5B"), device_map="auto")
@@ -39,11 +39,11 @@ class LoRATrainer(BaseTrainer):
         lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
-            r=self.config.get("lora_r", 8),
-            target_modules=self.config.get("target_modules", 
-                ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]),
-            lora_alpha=self.config.get("lora_alpha", 16),
-            lora_dropout=self.config.get("lora_dropout", 0),
+            r=kwargs.get("lora_r", self.config.get("lora_r", 8)),
+            target_modules=kwargs.get("target_modules", self.config.get("target_modules", 
+                ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"])),
+            lora_alpha=kwargs.get("lora_alpha", self.config.get("lora_alpha", 16)),
+            lora_dropout=kwargs.get("lora_dropout", self.config.get("lora_dropout", 0)),
             bias="none"
         )
         
