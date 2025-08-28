@@ -20,31 +20,37 @@ class Output(BaseModel):
 class LLMGeminiJudgeEvaluator:
     """LLM as a Judge evaluator using Gemini (identical to llm_as_a_judge.py)."""
     
-    def __init__(self, base_model_name: str):
-        self.base_model_name = base_model_name
+    def __init__(self, base_model_name: str = None, config: Dict[str, Any] = None):
+        self.config = config or {}
+        self.base_model_name = base_model_name or self.config.get("base_model_name", "Qwen/Qwen2-0.5B")
         self.client = None
         self.base_model = None
         self.base_tokenizer = None
         self.setup_gemini()
         self.setup_base_model()
     
-    def setup_gemini(self):
+    def setup_gemini(self, **kwargs):
         """Setup Gemini client (identical to original implementation)."""
         load_dotenv()
-        GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        api_key = kwargs.get("api_key", self.config.get("gemini_api_key", os.getenv('GEMINI_API_KEY')))
+        self.client = genai.Client(api_key=api_key)
     
-    def setup_base_model(self):
+    def setup_base_model(self, **kwargs):
         """Setup base model for comparison (identical to original implementation)."""
-        self.base_tokenizer = AutoTokenizer.from_pretrained(self.base_model_name)
+        model_name = kwargs.get("base_model_name", self.base_model_name)
+        device_map = kwargs.get("device_map", self.config.get("device_map", "auto"))
+        
+        self.base_tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.base_model = AutoModelForCausalLM.from_pretrained(
-            self.base_model_name, 
-            device_map="auto"
+            model_name, 
+            device_map=device_map
         )
     
     def compare_math_solutions(self, finetuned_output: str, base_output: str, 
-                         problem: str, client) -> str:
+                         problem: str, client, **kwargs) -> str:
         """Compare finetuned and base model solutions (identical to original implementation)."""
+        model_name = kwargs.get("gemini_model", self.config.get("gemini_model", "gemini-2.5-pro"))
+        
         prompt = f"""
         You are an expert in evaluating the solutions of math problems with respect to their logical completeness and formally justified solutions
         Compare these two solutions to the same problem and provide scoring.
@@ -76,7 +82,7 @@ class LLMGeminiJudgeEvaluator:
         """
         
         response = client.models.generate_content(
-            model="gemini-2.5-pro", 
+            model=model_name, 
             contents=prompt,
             config={
             "response_mime_type": "application/json",
@@ -86,12 +92,16 @@ class LLMGeminiJudgeEvaluator:
         
         return response.text
     
-    def generate_base_model_output(self, problem: str) -> str:
+    def generate_base_model_output(self, problem: str, **kwargs) -> str:
         """Generate output from base model (identical to original implementation)."""
+        system_message = kwargs.get("system_message", self.config.get("system_message", 
+            "Solve the following problem with logically complete and formally justified solutions:"))
+        max_new_tokens = kwargs.get("max_new_tokens", self.config.get("max_new_tokens", 128))
+        
         messages = [
             {
                 "role": "system",
-                "content": "Solve the following problem with logically complete and formally justified solutions:"
+                "content": system_message
             },
             {
                 "role": "user", 
@@ -106,7 +116,7 @@ class LLMGeminiJudgeEvaluator:
         )
 
         inputs = self.base_tokenizer([prompt], return_tensors="pt").to("cuda")
-        base_model_output = self.base_model.generate(**inputs, max_new_tokens=128)
+        base_model_output = self.base_model.generate(**inputs, max_new_tokens=max_new_tokens)
         base_model_output = self.base_tokenizer.decode(base_model_output[0], skip_special_tokens=True)
         
         return base_model_output
