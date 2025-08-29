@@ -240,7 +240,8 @@ if __name__ == "__main__":
 
     vllm_start_time = time.time()
 
-    response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request=LoRARequest("adapter", 1, "adapterUnsloth")) #
+    lora_request = LoRARequest("adapter", 1, "adapterUnsloth")
+    response = vllm_model.generate([prompt], sampling_params=sampling_params, lora_request=lora_request)
 
     torch.cuda.synchronize()  
     vllm_end_time = time.time()
