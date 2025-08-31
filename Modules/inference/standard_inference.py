@@ -107,7 +107,7 @@ class StandardInferenceEngine(BaseInferenceEngine):
         
         return self.generate(prompt, **kwargs)
     
-    def batch_inference_on_dataset(self, data_path: str, output_path: str, system_message: str = None, **kwargs) -> List[Dict[str, Any]]:
+    def batch_inference_on_math_dataset(self, data_path: str, output_path: str, system_message: str = None, **kwargs) -> List[Dict[str, Any]]:
         """Run batch inference on test dataset."""
         testing_dataset = pd.read_csv(data_path)
         generated_outputs = []
