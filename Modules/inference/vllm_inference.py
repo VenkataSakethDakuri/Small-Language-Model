@@ -25,7 +25,7 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         self.clear_cache()
         
         self.vllm_model = LLM(
-            model=kwargs.get("base_model", self.config.get("base_model", self.lora_path)),
+            model=kwargs.get("base_model", self.config.get("base_model", "openai/gpt-oss-20b")),
             gpu_memory_utilization=kwargs.get("gpu_memory_utilization", self.config.get("gpu_memory_utilization", 0.3)),
             enable_lora=kwargs.get("enable_lora", self.config.get("enable_lora", True))
         )
