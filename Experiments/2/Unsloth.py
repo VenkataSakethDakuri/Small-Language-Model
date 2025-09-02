@@ -198,16 +198,98 @@ if __name__ == "__main__":
         'generated_solution': generated_text,
     })
         
-torch.cuda.synchronize()
-end_time = time.time()
+    torch.cuda.synchronize()
+    end_time = time.time()
 
-with open("gpt_oss_Lora_unsloth.json", "w") as f:
-    json.dump(generated_outputs, f)
+    with open("gpt_oss_Lora_unsloth.json", "w") as f:
+        json.dump(generated_outputs, f)
 
-print(f"\nInference Metrics:")
-print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
-print(f"Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
-print(f"Time to first token: {text_streamer.first_token_time - start_time:.5f} seconds")
-print(f"Inference time: {end_time - start_time:.2f} seconds")
+    print(f"\nInference Metrics:")
+    print(f"Model size: {model_size_mb:.2f} MB with {param_count} parameters")
+    print(f"Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
+    print(f"Time to first token: {text_streamer.first_token_time - start_time:.5f} seconds")
+    print(f"Inference time: {end_time - start_time:.2f} seconds")
 
-torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
+
+    vllm_model = LLM(
+    model="unsloth/gpt-oss-20b", 
+    enable_lora=True, 
+    gpu_memory_utilization=0.8,
+    max_model_len=1024
+)
+
+    # Set up sampling parameters
+    sampling_params = SamplingParams(
+        temperature=0.0,  # Set to 0 for deterministic results, matching your inference
+        max_tokens=64,    # Match your max_new_tokens
+        stop=["<|end_of_text|>", "</s>"]
+    )
+
+    # Load the same testing dataset
+    vllm_generated_outputs = []
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats(device=0)
+
+    vllm_start_time = time.time()
+
+    # Process the same test data
+    for i in range(len(testing_dataset)):
+        row = testing_dataset.iloc[i]
+        
+        # Create messages in the same format as your unsloth inference
+        messages = [
+            {
+                "role": "system",
+                "content": "Solve the following problem with logically complete and formally justified solutions:"
+            },
+            {
+                "role": "user", 
+                "content": f"### Problem:\n{row['Problem']}\n\n### Solution:"
+            }
+        ]
+        
+        # Apply chat template (same as unsloth inference)
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=False,
+            add_special_tokens=False
+        )
+        
+        # Create LoRA request using your saved adapter
+        lora_request = LoRARequest("math_adapter", 1, "adapter_gptOSSLora")
+        
+        # Generate response
+        response = vllm_model.generate(
+            [prompt], 
+            sampling_params=sampling_params, 
+            lora_request=lora_request
+        )
+        
+        generated_text = response[0].outputs[0].text
+        
+        vllm_generated_outputs.append({
+            'problem': row['Problem'],
+            'original_solution': row['Solution'],
+            'generated_solution': generated_text,
+        })
+
+    torch.cuda.synchronize()
+    vllm_end_time = time.time()
+
+    # Save vLLM results
+    with open("gpt_oss_Lora_vllm.json", "w") as f:
+        json.dump(vllm_generated_outputs, f, indent=2)
+
+    # Print vLLM metrics
+    print(f"\nvLLM Inference Metrics:")
+    print(f"vLLM Inference time: {vllm_end_time - vllm_start_time:.2f} seconds")
+    print(f"vLLM Peak reserved memory: {round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)} GB")
+    print(f"Average time per sample: {(vllm_end_time - vllm_start_time) / len(testing_dataset):.4f} seconds")
+
+    # Cleanup
+    del vllm_model
+    torch.cuda.empty_cache()
+
+
