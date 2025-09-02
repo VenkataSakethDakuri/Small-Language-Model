@@ -1,3 +1,8 @@
+"""
+Uses unsloth for lora training of gpt oss 20 b model. Has unsloth and vLLM inference. Uses a Math dataset from https://github.com/ziye2chen/DEMI-MathAnalysis 
+for finetuning. Stores the output of finetuned model for llm as a judge evaluation.
+"""
+
 from turtle import pd
 import torch
 from unsloth import FastLanguageModel

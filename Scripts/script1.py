@@ -1,6 +1,6 @@
 """
 Script for end to end training and evaluation of a model with math dataset using gemini LLM as a judge. Uses standard and vLLM inference. 
-Uses a range of values and options for hyperparameters for LoRA training
+Uses a range of values and options for hyperparameters for standard LoRA training.
 """
 
 import itertools
