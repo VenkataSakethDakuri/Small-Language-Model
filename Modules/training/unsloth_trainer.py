@@ -138,6 +138,10 @@ class UnslothTrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
+
+        output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingAlpaca_Unsloth"))
+        self.save_model(output_dir)
+
         MemoryUtils.clear_cache()
         
         # Store metrics
@@ -147,7 +151,8 @@ class UnslothTrainer(BaseTrainer):
         return {
             "trainer_result": trainer_result,
             "training_time": self.training_time,
-            "peak_memory": self.peak_memory
+            "peak_memory": self.peak_memory,
+            "output_dir": output_dir
         }
     
     def train_math(self, data: pd.DataFrame, **kwargs) -> Dict[str, Any]:
@@ -187,6 +192,10 @@ class UnslothTrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
+
+        output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_Unsloth"))
+        self.save_model(output_dir)
+
         MemoryUtils.clear_cache()
         
         # Store metrics
@@ -196,7 +205,8 @@ class UnslothTrainer(BaseTrainer):
         return {
             "trainer_result": trainer_result,
             "training_time": self.training_time,
-            "peak_memory": self.peak_memory
+            "peak_memory": self.peak_memory,
+            "output_dir": output_dir
         }
     
     def print_training_metrics(self):
@@ -207,5 +217,7 @@ class UnslothTrainer(BaseTrainer):
     
     def save_model(self, output_dir: str) -> None:
         """Save the trained model (identical to Unsloth.py implementation)."""
+        import os
+        os.makedirs(output_dir, exist_ok=True)
         self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)

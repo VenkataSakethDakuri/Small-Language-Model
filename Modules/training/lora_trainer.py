@@ -151,6 +151,11 @@ class LoRATrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
+
+                # Save the trained model
+        output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_LoRA"))
+        self.save_model(output_dir)
+
         MemoryUtils.clear_cache()
         
         # Store metrics
@@ -160,7 +165,8 @@ class LoRATrainer(BaseTrainer):
         return {
             "trainer_result": trainer_result,
             "training_time": self.training_time,
-            "peak_memory": self.peak_memory
+            "peak_memory": self.peak_memory,
+            "output_dir": output_dir
         }
     
     def train_alpaca(self, data: pd.DataFrame, **kwargs) -> Dict[str, Any]:
@@ -210,6 +216,10 @@ class LoRATrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
+
+        output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_LoRA"))
+        self.save_model(output_dir)
+
         MemoryUtils.clear_cache()
         
         # Store metrics
@@ -219,7 +229,8 @@ class LoRATrainer(BaseTrainer):
         return {
             "trainer_result": trainer_result,
             "training_time": self.training_time,
-            "peak_memory": self.peak_memory
+            "peak_memory": self.peak_memory,
+            "output_dir": output_dir
         }
     
     def print_training_metrics(self):
@@ -230,5 +241,7 @@ class LoRATrainer(BaseTrainer):
 
     def save_model(self, output_dir: str) -> None:
         """Save the trained model (identical to GPT_oss.py implementation)."""
+        import os 
+        os.makedirs(output_dir, exist_ok=True)
         self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)
