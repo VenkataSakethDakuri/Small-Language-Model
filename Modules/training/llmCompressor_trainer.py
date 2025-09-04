@@ -39,6 +39,46 @@ class CompressedTrainer(BaseTrainer):
         self.setup_tokenizer_padding()
         self.data_processor = DataProcessor(self.tokenizer)
     
+        def prepare_data(self, data, dataset_type: str = "math"):
+            """Prepare training data based on dataset type.
+            
+            Args:
+                data: Input data (DataFrame for math, dataset_split string for alpaca)
+                dataset_type: Type of dataset to prepare ("math" or "alpaca")
+            
+            Returns:
+                Prepared dataset object
+            """
+            if dataset_type.lower() == "math":
+                return self.prepare_math_data(data)
+            elif dataset_type.lower() == "alpaca":
+                # For alpaca, data should be a dataset_split string
+                dataset = DatasetFactory.load_hf_dataset("yahma/alpaca-cleaned", 
+                                                        data if isinstance(data, str) else "train[:10000]")
+                return self.prepare_alpaca_data(dataset)
+            else:
+                raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
+
+    def train(self, data, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
+        """Execute training process based on dataset type.
+        
+        Args:
+            data: Input data (DataFrame for math, dataset_split string for alpaca)
+            dataset_type: Type of dataset to train on ("math" or "alpaca")
+            **kwargs: Additional training parameters
+        
+        Returns:
+            Dictionary containing training results and metrics
+        """
+        if dataset_type.lower() == "math":
+            return self.train_math(data, **kwargs)
+        elif dataset_type.lower() == "alpaca":
+            # For alpaca, data should be a dataset_split string
+            dataset_split = data if isinstance(data, str) else "train[:10000]"
+            return self.train_alpaca(dataset_split, **kwargs)
+        else:
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
+
     def prepare_alpaca_data(self, dataset) -> Any:
         """Prepare alpaca training data."""
         processed_dataset = dataset.map(self.data_processor.alpaca_data_processing, batched=True)

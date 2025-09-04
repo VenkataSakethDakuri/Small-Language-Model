@@ -50,6 +50,42 @@ class LoRATrainer(BaseTrainer):
         self.model = get_peft_model(self.model, lora_config)
         self.data_processor = DataProcessor(self.tokenizer)
     
+        def prepare_data(self, data: pd.DataFrame, dataset_type: str = "math") -> Dataset:
+
+            """Prepare training data based on dataset type.
+            
+            Args:
+                data: Input DataFrame containing the training data
+                dataset_type: Type of dataset to prepare ("math" or "alpaca")
+
+            Returns:
+                Prepared Dataset object
+            """
+            if dataset_type.lower() == "math":
+                return self.prepare_math_data(data)
+            elif dataset_type.lower() == "alpaca":
+                return self.prepare_alpaca_data(data)
+            else:
+                raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted types are 'math', 'alpaca'.")
+    
+    def train(self, data: pd.DataFrame, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
+        """Execute training process based on dataset type.
+        
+        Args:
+            data: Input DataFrame containing the training data
+            dataset_type: Type of dataset to train on ("math" or "alpaca")
+            **kwargs: Additional training parameters
+        
+        Returns:
+            Dictionary containing training results and metrics
+        """
+        if dataset_type.lower() == "math":
+            return self.train_math(data, **kwargs)
+        elif dataset_type.lower() == "alpaca":
+            return self.train_alpaca(data, **kwargs)
+        else:
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted types are 'math', 'alpaca'.")
+
     def prepare_math_data(self, data: pd.DataFrame) -> Dataset:
         """Prepare math training data."""
         processed_data = self.data_processor.math_data_processing(data)
@@ -191,7 +227,7 @@ class LoRATrainer(BaseTrainer):
         print("Training Metrics:")
         print(f"{self.training_time} seconds used for training.")
         print(f"Peak reserved memory = {self.peak_memory} GB.")
-    
+
     def save_model(self, output_dir: str) -> None:
         """Save the trained model (identical to GPT_oss.py implementation)."""
         self.model.save_pretrained(output_dir)
