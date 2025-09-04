@@ -10,6 +10,7 @@ from typing import Dict, Any, List
 import pandas as pd
 import json
 
+from Modules.utils.utlities import MemoryUtils
 from Modules.core.base_inference import BaseInferenceEngine
 
 class VLLMInferenceEngine(BaseInferenceEngine):
@@ -22,7 +23,7 @@ class VLLMInferenceEngine(BaseInferenceEngine):
     
     def load_model(self, **kwargs) -> None:
         """Load VLLM model (identical to existing implementations)."""
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         self.vllm_model = LLM(
             model=kwargs.get("base_model", self.config.get("base_model", "openai/gpt-oss-20b")),
@@ -41,9 +42,9 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         """Generate text using VLLM (identical to existing implementations)."""
         if not self.vllm_model:
             self.load_model()
-        
-        self.clear_cache()
-        self.reset_memory_stats()
+
+        MemoryUtils.clear_cache()
+        MemoryUtils.reset_memory_stats()
         
         start_time = time.time()
         
@@ -140,4 +141,4 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         """Cleanup VLLM model (identical to existing implementations)."""
         if self.vllm_model:
             del self.vllm_model
-            self.clear_cache()
+            MemoryUtils.clear_cache()

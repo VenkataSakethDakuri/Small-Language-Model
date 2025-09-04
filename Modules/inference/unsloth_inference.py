@@ -9,6 +9,7 @@ from typing import Dict, Any, List
 import pandas as pd
 import json
 
+from Modules.utils.utlities import MemoryUtils
 from Modules.core.base_inference import BaseInferenceEngine, CustomTextStreamer
 
 class UnslothInferenceEngine(BaseInferenceEngine):
@@ -39,7 +40,7 @@ class UnslothInferenceEngine(BaseInferenceEngine):
         inputs = self.tokenizer([prompt], return_tensors="pt").to("cuda")
         
         text_streamer = CustomTextStreamer(self.tokenizer)
-        self.reset_memory_stats()
+        MemoryUtils.reset_memory_stats()
         start_time = time.time()
                 
         with torch.no_grad():
