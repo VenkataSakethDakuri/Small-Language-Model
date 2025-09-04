@@ -11,6 +11,7 @@ import pandas as pd
 
 from Modules.core.base_trainer import BaseTrainer
 from Modules.data.data_processor import DataProcessor, DatasetFactory
+from Modules.utils.utlities import MemoryUtils
 
 class UnslothTrainer(BaseTrainer):
     """Unsloth trainer implementation (identical to Unsloth.py)."""
@@ -48,24 +49,24 @@ class UnslothTrainer(BaseTrainer):
         
         self.data_processor = DataProcessor(self.tokenizer)
     
-        def prepare_data(self, data, dataset_type: str = "math"):
-            """Prepare training data based on dataset type.
-            
-            Args:
-                data: Input data (DataFrame for math, dataset_split string for alpaca)
-                dataset_type: Type of dataset to prepare ("math" or "alpaca")
-            
-            Returns:
-                Prepared dataset object
-            """
-            if dataset_type.lower() == "math":
-                return self.prepare_math_data(data)
-            elif dataset_type.lower() == "alpaca":
-                # For alpaca, data should be a dataset_split string
-                dataset = DatasetFactory.create_alpaca_dataset(data if isinstance(data, str) else "train[:10000]")
-                return self.prepare_alpaca_data(dataset)
-            else:
-                raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
+    def prepare_data(self, data, dataset_type: str = "math"):
+        """Prepare training data based on dataset type.
+        
+        Args:
+            data: Input data (DataFrame for math, dataset_split string for alpaca)
+            dataset_type: Type of dataset to prepare ("math" or "alpaca")
+        
+        Returns:
+            Prepared dataset object
+        """
+        if dataset_type.lower() == "math":
+            return self.prepare_math_data(data)
+        elif dataset_type.lower() == "alpaca":
+            # For alpaca, data should be a dataset_split string
+            dataset = DatasetFactory.create_alpaca_dataset(data if isinstance(data, str) else "train[:10000]")
+            return self.prepare_alpaca_data(dataset)
+        else:
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
 
     def train(self, data, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
         """Execute training process based on dataset type.
@@ -130,18 +131,18 @@ class UnslothTrainer(BaseTrainer):
         )
         
         # Training with metrics tracking
-        self.reset_memory_stats()
+        MemoryUtils.reset_memory_stats()
         train_time_start = time.time()
         
         trainer_result = trainer.train()
         
-        torch.cuda.synchronize()
+        MemoryUtils.synchronize()
         train_time_end = time.time()
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
-        self.peak_memory = self.get_memory_usage()
+        self.peak_memory = MemoryUtils.get_memory_usage()
         
         return {
             "trainer_result": trainer_result,
@@ -179,18 +180,18 @@ class UnslothTrainer(BaseTrainer):
         )
         
         # Training with metrics tracking
-        self.reset_memory_stats()
+        MemoryUtils.reset_memory_stats()
         train_time_start = time.time()
         
         trainer_result = trainer.train()
         
-        torch.cuda.synchronize()
+        MemoryUtils.synchronize()
         train_time_end = time.time()
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
-        self.peak_memory = self.get_memory_usage()
+        self.peak_memory = MemoryUtils.get_memory_usage()
         
         return {
             "trainer_result": trainer_result,

@@ -19,15 +19,15 @@ class BaseTrainer(ABC):
         pass
     
     @abstractmethod
-    def prepare_data(self, dataset) -> Any:
+    def prepare_data(self, data, dataset_type: str = "math") -> Any:
         """Prepare and preprocess the training data."""
         pass
     
     @abstractmethod
-    def train(self) -> Dict[str, Any]:
+    def train(self, data, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
         """Execute the training process."""
         pass
- 
+    
     def setup_tokenizer_padding(self):
         """Setup padding token if not exists."""
         if self.tokenizer.pad_token is None:

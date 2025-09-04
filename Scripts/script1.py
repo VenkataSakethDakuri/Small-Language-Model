@@ -8,6 +8,10 @@ import json
 import logging
 import sys
 from typing import Dict, List, Tuple, Any
+import os
+
+#Adding GrandParent path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Modules.training.lora_trainer import LoRATrainer
 from Modules.inference.standard_inference import StandardInferenceEngine
@@ -249,7 +253,7 @@ def run_single_experiment(
         
         # Train the model
         logging.info(f"Starting training for combination {combination_counter}")
-        training_result = trainer.train_math(train_data, **training_params)
+        training_result = trainer.train(train_data, "math", **training_params)
         
         # Run standard inference
         logging.info(f"Running standard inference for combination {combination_counter}")

@@ -19,6 +19,7 @@ from typing import Dict, Any, List
 
 from Modules.core.base_trainer import BaseTrainer
 from Modules.data.data_processor import DataProcessor
+from Modules.utils.utlities import MemoryUtils
 
 class LoRATrainer(BaseTrainer):
     """LoRA trainer for GPT-OSS style training (identical to GPT_oss.py)."""
@@ -50,23 +51,22 @@ class LoRATrainer(BaseTrainer):
         self.model = get_peft_model(self.model, lora_config)
         self.data_processor = DataProcessor(self.tokenizer)
     
-        def prepare_data(self, data: pd.DataFrame, dataset_type: str = "math") -> Dataset:
+    def prepare_data(self, data: pd.DataFrame, dataset_type: str = "math") -> Dataset:
+        """Prepare training data based on dataset type.
+        
+        Args:
+            data: Input DataFrame containing the training data
+            dataset_type: Type of dataset to prepare ("math" or "alpaca")
 
-            """Prepare training data based on dataset type.
-            
-            Args:
-                data: Input DataFrame containing the training data
-                dataset_type: Type of dataset to prepare ("math" or "alpaca")
-
-            Returns:
-                Prepared Dataset object
-            """
-            if dataset_type.lower() == "math":
-                return self.prepare_math_data(data)
-            elif dataset_type.lower() == "alpaca":
-                return self.prepare_alpaca_data(data)
-            else:
-                raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted types are 'math', 'alpaca'.")
+        Returns:
+            Prepared Dataset object
+        """
+        if dataset_type.lower() == "math":
+            return self.prepare_math_data(data)
+        elif dataset_type.lower() == "alpaca":
+            return self.prepare_alpaca_data(data)
+        else:
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted types are 'math', 'alpaca'.")
     
     def train(self, data: pd.DataFrame, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
         """Execute training process based on dataset type.
@@ -144,18 +144,18 @@ class LoRATrainer(BaseTrainer):
         )
         
         # Training with metrics tracking
-        self.reset_memory_stats()
+        MemoryUtils.reset_memory_stats()
         train_time_start = time.time()
         
         trainer_result = trainer.train()
         
-        torch.cuda.synchronize()
+        MemoryUtils.synchronize()
         train_time_end = time.time()
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
-        self.peak_memory = self.get_memory_usage()
+        self.peak_memory = MemoryUtils.get_memory_usage()
         
         return {
             "trainer_result": trainer_result,
@@ -203,18 +203,18 @@ class LoRATrainer(BaseTrainer):
         )
         
         # Training with metrics tracking
-        self.reset_memory_stats()
+        MemoryUtils.reset_memory_stats()
         train_time_start = time.time()
         
         trainer_result = trainer.train()
         
-        torch.cuda.synchronize()
+        MemoryUtils.synchronize()
         train_time_end = time.time()
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
-        self.peak_memory = self.get_memory_usage()
+        self.peak_memory = MemoryUtils.get_memory_usage()
         
         return {
             "trainer_result": trainer_result,
