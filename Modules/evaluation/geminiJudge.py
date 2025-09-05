@@ -10,6 +10,10 @@ from google import genai
 from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Dict, Any, List
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Any, List
+import multiprocessing
 
 class Output(BaseModel):
     """Output model for LLM judge evaluation (identical to original)."""
@@ -173,3 +177,110 @@ class LLMGeminiJudgeEvaluator:
             "base_avg": total_second_score / valid_comparisons,
             "total_comparisons": valid_comparisons
         }
+
+class LLMGeminiJudgeEvaluatorAsync:
+    """Async wrapper for LLM Judge Evaluator with optimized batching."""
+    
+    def __init__(self, evaluator: LLMGeminiJudgeEvaluator, config: Dict[str, Any] = None):
+        self.evaluator = evaluator
+        self.config = config or {}
+        
+        # CPU-bound operations (base model generation)
+        cpu_workers = self.config.get("cpu_workers", multiprocessing.cpu_count())
+        self.cpu_executor = ThreadPoolExecutor(max_workers=cpu_workers)
+        
+        # I/O-bound operations (API calls)
+        io_workers = self.config.get("io_workers", 25)  # Higher for I/O
+        self.io_executor = ThreadPoolExecutor(max_workers=io_workers)
+        
+        # Batch sizes
+        self.cpu_batch_size = self.config.get("cpu_batch_size", cpu_workers)
+        self.io_batch_size = self.config.get("io_batch_size", min(io_workers, 20)) # Limit to avoid rate limits
+
+    async def generate_base_model_output_async(self, problem: str, **kwargs) -> str:
+        """Async wrapper for base model output generation."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.cpu_executor, 
+            self.evaluator.generate_base_model_output, 
+            problem, 
+            **kwargs
+        )
+
+    async def compare_math_solutions_async(self, finetuned_output: str, base_output: str, 
+                                         problem: str, **kwargs) -> str:
+        """Async wrapper for Gemini API comparison."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.io_executor,
+            self.evaluator.compare_math_solutions,
+            finetuned_output,
+            base_output,
+            problem,
+            self.evaluator.client,
+            **kwargs
+        )
+    
+    async def evaluate_outputs_async(self, finetuned_outputs_file: str) -> Dict[str, Any]:
+        """Async evaluation of finetuned model outputs against base model."""
+        # Load finetuned outputs
+        with open(finetuned_outputs_file, "r") as f:
+            loaded_outputs = json.load(f)
+        
+        base_model_outputs = []
+        comparison_results = []
+        
+        # Step 1: Generate base model outputs in batches
+        for i in range(0, len(loaded_outputs), self.cpu_batch_size):
+            batch = loaded_outputs[i:i + self.cpu_batch_size]
+            tasks = [
+                self.generate_base_model_output_async(output['problem']) 
+                for output in batch
+            ]
+            batch_results = await asyncio.gather(*tasks)
+            base_model_outputs.extend(batch_results)
+        
+        # Step 2: Compare solutions using Gemini in batches
+        if self.evaluator.client:  # Only if Gemini client is properly set up
+            for i in range(0, len(loaded_outputs), self.io_batch_size):
+                batch = loaded_outputs[i:i + self.io_batch_size]
+                tasks = [
+                    self.compare_math_solutions_async(
+                        output['generated_solution'],
+                        base_model_outputs[i + idx],
+                        output['problem']
+                    ) 
+                    for idx, output in enumerate(batch)
+                ]
+                batch_results = await asyncio.gather(*tasks)
+                comparison_results.extend(batch_results)
+        
+        return {
+            "base_outputs": base_model_outputs,
+            "comparisons": comparison_results
+        }
+
+    async def calculate_average_scores_async(self, comparison_results: List[str]) -> Dict[str, float]:
+        """Async calculation of average scores from comparison results."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self.evaluator.calculate_average_scores,
+            comparison_results
+        )
+    
+    def cleanup(self):
+        """Cleanup executors."""
+        self.cpu_executor.shutdown(wait=True)
+        self.io_executor.shutdown(wait=True)
+    
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        self.cleanup()
+
+
+
