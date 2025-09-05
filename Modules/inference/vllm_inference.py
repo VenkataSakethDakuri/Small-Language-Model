@@ -111,6 +111,9 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         
         if system_message is None:
             system_message = "Solve the following problem with logically complete and formally justified solutions:"
+
+        MemoryUtils.reset_memory_stats()
+        start_time = time.time()
         
         for i in range(len(testing_dataset)):
             row = testing_dataset.iloc[i]
@@ -126,6 +129,11 @@ class VLLMInferenceEngine(BaseInferenceEngine):
                 'original_solution': row['Solution'],
                 'generated_solution': generated_text,
             })
+        
+        self.peak_reserved_memory = MemoryUtils.get_memory_summary()["peak_reserved_gb"]
+        torch.cuda.synchronize()
+        end_time = time.time()
+        self.inference_time = end_time - start_time
         
         # Save results
         with open(output_path, "w") as f:
@@ -143,3 +151,9 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         if self.vllm_model:
             del self.vllm_model
             MemoryUtils.clear_cache()
+    
+    def metrics(self):
+        return {
+            "inference_time": self.inference_time,
+            "peak_reserved_memory": self.peak_reserved_memory
+        }
