@@ -9,8 +9,8 @@ from typing import Dict, Any, List
 import pandas as pd
 import json
 
-from Modules.utils.utlities import MemoryUtils
 from Modules.core.base_inference import BaseInferenceEngine, CustomTextStreamer
+from Modules.utils.utlities import MemoryUtils
 
 class UnslothInferenceEngine(BaseInferenceEngine):
     """Unsloth inference engine (identical to Unsloth.py implementation)."""
@@ -22,7 +22,7 @@ class UnslothInferenceEngine(BaseInferenceEngine):
 
     def load_model(self, **kwargs) -> None:
         """Load model using Unsloth (identical to Unsloth.py implementation)."""
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         # Reload for inference using Unsloth (identical to original)
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(

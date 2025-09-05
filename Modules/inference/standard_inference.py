@@ -10,8 +10,8 @@ from typing import Dict, Any, List
 import pandas as pd
 import json
 
-from Modules.utils.utlities import MemoryUtils
 from Modules.core.base_inference import BaseInferenceEngine, CustomTextStreamer
+from Modules.utils.utlities import MemoryUtils
 
 class StandardInferenceEngine(BaseInferenceEngine):
     """Standard inference engine using transformers (identical to existing implementations)."""
@@ -23,7 +23,7 @@ class StandardInferenceEngine(BaseInferenceEngine):
     
     def load_model(self, **kwargs) -> None:
         """Load model for inference (identical to Qwen.py implementation)."""
-        self.clear_cache()
+        MemoryUtils.clear_cache()
         
         base_model = AutoModelForCausalLM.from_pretrained(
             kwargs.get("base_model", self.config.get("base_model", "Qwen/Qwen2-0.5B")),

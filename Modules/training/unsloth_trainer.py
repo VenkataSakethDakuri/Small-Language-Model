@@ -66,8 +66,8 @@ class UnslothTrainer(BaseTrainer):
             dataset = DatasetFactory.create_alpaca_dataset(data if isinstance(data, str) else "train[:10000]")
             return self.prepare_alpaca_data(dataset)
         else:
-            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
-
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Use 'math' or 'alpaca'.")
+    
     def train(self, data, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
         """Execute training process based on dataset type.
         
@@ -86,8 +86,8 @@ class UnslothTrainer(BaseTrainer):
             dataset_split = data if isinstance(data, str) else "train[:10000]"
             return self.train_alpaca(dataset_split, **kwargs)
         else:
-            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
-
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Use 'math' or 'alpaca'.")
+    
     def prepare_alpaca_data(self, dataset) -> Any:
         """Prepare alpaca training data."""
         return dataset.map(self.data_processor.alpaca_data_processing, batched=True)
@@ -136,13 +136,12 @@ class UnslothTrainer(BaseTrainer):
         
         trainer_result = trainer.train()
         
-        MemoryUtils.synchronize()
+        torch.cuda.synchronize()
         train_time_end = time.time()
+        MemoryUtils.clear_cache()
 
         output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingAlpaca_Unsloth"))
         self.save_model(output_dir)
-
-        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
@@ -190,13 +189,12 @@ class UnslothTrainer(BaseTrainer):
         
         trainer_result = trainer.train()
         
-        MemoryUtils.synchronize()
+        torch.cuda.synchronize()
         train_time_end = time.time()
+        MemoryUtils.clear_cache()
 
         output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_Unsloth"))
         self.save_model(output_dir)
-
-        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
@@ -214,10 +212,8 @@ class UnslothTrainer(BaseTrainer):
         print("Training Metrics:")
         print(f"{self.training_time} seconds used for training.")
         print(f"Peak reserved memory = {self.peak_memory} GB.")
-    
+
     def save_model(self, output_dir: str) -> None:
         """Save the trained model (identical to Unsloth.py implementation)."""
-        import os
-        os.makedirs(output_dir, exist_ok=True)
         self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)

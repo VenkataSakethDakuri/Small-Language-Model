@@ -10,8 +10,8 @@ from typing import Dict, Any, List
 import pandas as pd
 import json
 
-from Modules.utils.utlities import MemoryUtils
 from Modules.core.base_inference import BaseInferenceEngine
+from Modules.utils.utlities import MemoryUtils
 
 class VLLMInferenceEngine(BaseInferenceEngine):
     """VLLM inference engine with LoRA support (identical to existing implementations)."""
@@ -27,8 +27,9 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         
         self.vllm_model = LLM(
             model=kwargs.get("base_model", self.config.get("base_model", "openai/gpt-oss-20b")),
-            gpu_memory_utilization=kwargs.get("gpu_memory_utilization", self.config.get("gpu_memory_utilization", 0.3)),
-            enable_lora=kwargs.get("enable_lora", self.config.get("enable_lora", True))
+            gpu_memory_utilization=kwargs.get("gpu_memory_utilization", self.config.get("gpu_memory_utilization", 0.5)),
+            enable_lora=kwargs.get("enable_lora", self.config.get("enable_lora", True)),
+            max_model_len=kwargs.get("max_model_len", self.config.get("max_model_length", 512))
         )
         
         # Setup sampling parameters (identical to original)
@@ -42,7 +43,7 @@ class VLLMInferenceEngine(BaseInferenceEngine):
         """Generate text using VLLM (identical to existing implementations)."""
         if not self.vllm_model:
             self.load_model()
-
+        
         MemoryUtils.clear_cache()
         MemoryUtils.reset_memory_stats()
         

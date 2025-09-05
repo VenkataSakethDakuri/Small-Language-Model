@@ -113,15 +113,10 @@ class DatasetFactory:
             raise ValueError(f"Unsupported tokenize type: {data_type}")
 
     @staticmethod
-    def create_alpaca_dataset(split: str = "train[:10000]") -> Dataset:
-        """Create Alpaca dataset for training."""
-        return load_dataset("yahma/alpaca-cleaned", split=split)
-    
-    @staticmethod
-    def create_calibration_dataset(split: str = "train[:1000]", 
+    def create_calibration_dataset(split: str = "train[:1000]", dataset_name: str = "yahma/alpaca-cleaned",
                                  processor: DataProcessor = None) -> Dataset:
         """Create calibration dataset for quantization."""
-        dataset = load_dataset("yahma/alpaca-cleaned", split=split)
+        dataset = load_dataset(dataset_name, split=split)
         if processor:
             dataset = dataset.map(processor.alpaca_data_processing, batched=True)
             

@@ -58,8 +58,8 @@ class CompressedTrainer(BaseTrainer):
                                                     data if isinstance(data, str) else "train[:10000]")
             return self.prepare_alpaca_data(dataset)
         else:
-            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
-
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Use 'math' or 'alpaca'.")
+    
     def train(self, data, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
         """Execute training process based on dataset type.
         
@@ -78,8 +78,8 @@ class CompressedTrainer(BaseTrainer):
             dataset_split = data if isinstance(data, str) else "train[:10000]"
             return self.train_alpaca(dataset_split, **kwargs)
         else:
-            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted values are math, alpaca.")
-
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Use 'math' or 'alpaca'.")
+    
     def prepare_alpaca_data(self, dataset) -> Any:
         """Prepare alpaca training data."""
         processed_dataset = dataset.map(self.data_processor.alpaca_data_processing, batched=True)
@@ -125,7 +125,9 @@ class CompressedTrainer(BaseTrainer):
             lr_scheduler_type=kwargs.get("lr_scheduler_type", self.config.get("lr_scheduler_type", "linear")),
             seed=kwargs.get("seed", self.config.get("seed", 108)),
             report_to="none",
-            save_strategy="no"
+            save_strategy="no",
+            remove_unused_columns=False,
+            dataloader_drop_last=False,
         )
         
         # Initialize trainer
@@ -145,11 +147,10 @@ class CompressedTrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
+        MemoryUtils.clear_cache()
 
         output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingAlpaca_LLMCompressor"))
         self.save_model(output_dir)
-
-        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
@@ -186,7 +187,9 @@ class CompressedTrainer(BaseTrainer):
             lr_scheduler_type=kwargs.get("lr_scheduler_type", self.config.get("lr_scheduler_type", "linear")),
             seed=kwargs.get("seed", self.config.get("seed", 108)),
             report_to="none",
-            save_strategy="no"
+            save_strategy="no",
+            remove_unused_columns=False,
+            dataloader_drop_last=False
         )
         
         # Initialize trainer
@@ -206,11 +209,10 @@ class CompressedTrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
+        MemoryUtils.clear_cache()
 
         output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_LLMCompressor"))
         self.save_model(output_dir)
-
-        MemoryUtils.clear_cache()
         
         # Store metrics
         self.training_time = train_time_end - train_time_start
@@ -286,10 +288,8 @@ class CompressedTrainer(BaseTrainer):
         self.model = get_peft_model(self.model, lora_config)
         self.model = self.model.to("cuda")
         self.model.eval()
-    
+
     def save_model(self, output_dir: str) -> None:
         """Save the trained model (identical to LLMCompressor.py implementation)."""
-        import os
-        os.makedirs(output_dir, exist_ok=True)
         self.model.save_pretrained(output_dir)
         self.tokenizer.save_pretrained(output_dir)

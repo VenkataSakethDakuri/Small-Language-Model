@@ -51,23 +51,6 @@ class LoRATrainer(BaseTrainer):
         self.model = get_peft_model(self.model, lora_config)
         self.data_processor = DataProcessor(self.tokenizer)
     
-    def prepare_data(self, data: pd.DataFrame, dataset_type: str = "math") -> Dataset:
-        """Prepare training data based on dataset type.
-        
-        Args:
-            data: Input DataFrame containing the training data
-            dataset_type: Type of dataset to prepare ("math" or "alpaca")
-
-        Returns:
-            Prepared Dataset object
-        """
-        if dataset_type.lower() == "math":
-            return self.prepare_math_data(data)
-        elif dataset_type.lower() == "alpaca":
-            return self.prepare_alpaca_data(data)
-        else:
-            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted types are 'math', 'alpaca'.")
-    
     def train(self, data: pd.DataFrame, dataset_type: str = "math", **kwargs) -> Dict[str, Any]:
         """Execute training process based on dataset type.
         
@@ -84,8 +67,33 @@ class LoRATrainer(BaseTrainer):
         elif dataset_type.lower() == "alpaca":
             return self.train_alpaca(data, **kwargs)
         else:
-            raise ValueError(f"Unsupported dataset type: {dataset_type}. Accepted types are 'math', 'alpaca'.")
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Use 'math' or 'alpaca'.")
+    
+    def prepare_data(self, data: pd.DataFrame, dataset_type: str = "math") -> Dataset:
+        """Prepare training data based on dataset type.
+        
+        Args:
+            data: Input DataFrame containing the training data
+            dataset_type: Type of dataset to prepare ("math" or "alpaca")
+        
+        Returns:
+            Prepared Dataset object
+        """
+        if dataset_type.lower() == "math":
+            return self.prepare_math_data(data)
+        elif dataset_type.lower() == "alpaca":
+            return self.prepare_alpaca_data(data)
+        else:
+            raise ValueError(f"Unsupported dataset type: {dataset_type}. Use 'math' or 'alpaca'.")
 
+    def save_model(self, output_dir: str) -> None:
+        """Save the trained model (identical to GPT_oss.py implementation)."""
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        self.model.save_pretrained(output_dir)
+        self.tokenizer.save_pretrained(output_dir)
+        print(f"Model and tokenizer saved to {output_dir}")
+    
     def prepare_math_data(self, data: pd.DataFrame) -> Dataset:
         """Prepare math training data."""
         processed_data = self.data_processor.math_data_processing(data)
@@ -151,11 +159,11 @@ class LoRATrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
-
-                # Save the trained model
+        
+        # Save the trained model
         output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_LoRA"))
         self.save_model(output_dir)
-
+        
         MemoryUtils.clear_cache()
         
         # Store metrics
@@ -216,10 +224,11 @@ class LoRATrainer(BaseTrainer):
         
         MemoryUtils.synchronize()
         train_time_end = time.time()
-
-        output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingMath_LoRA"))
+        
+        # Save the trained model
+        output_dir = kwargs.get("output_dir", self.config.get("output_dir", "TrainingAlpaca_LoRA"))
         self.save_model(output_dir)
-
+        
         MemoryUtils.clear_cache()
         
         # Store metrics
@@ -238,10 +247,7 @@ class LoRATrainer(BaseTrainer):
         print("Training Metrics:")
         print(f"{self.training_time} seconds used for training.")
         print(f"Peak reserved memory = {self.peak_memory} GB.")
+    
 
-    def save_model(self, output_dir: str) -> None:
-        """Save the trained model (identical to GPT_oss.py implementation)."""
-        import os 
-        os.makedirs(output_dir, exist_ok=True)
-        self.model.save_pretrained(output_dir)
-        self.tokenizer.save_pretrained(output_dir)
+    
+
