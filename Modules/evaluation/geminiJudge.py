@@ -49,6 +49,29 @@ class LLMGeminiJudgeEvaluator:
             model_name, 
             device_map=device_map
         )
+
+    def setup_vllm_base_model(self, **kwargs):
+        """Setup vLLM base model for comparison."""
+        
+        from vllm import LLM, SamplingParams
+        
+        model_name = kwargs.get("base_model_name", self.base_model_name)
+        tensor_parallel_size = kwargs.get("tensor_parallel_size", self.config.get("tensor_parallel_size", 1))
+        gpu_memory_utilization = kwargs.get("gpu_memory_utilization", self.config.get("gpu_memory_utilization", 0.8))
+        
+        # Initialize vLLM model
+        self.vllm_base_model = LLM(
+            model=model_name,
+            tensor_parallel_size=tensor_parallel_size,
+            gpu_memory_utilization=gpu_memory_utilization,
+            trust_remote_code=True
+        )
+        
+        # Setup tokenizer for vLLM (needed for chat template)
+        self.vllm_base_tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        # Store vLLM classes for later use
+        self.SamplingParams = SamplingParams
     
     def compare_math_solutions(self, finetuned_output: str, base_output: str, 
                          problem: str, client, **kwargs) -> str:
@@ -124,6 +147,53 @@ class LLMGeminiJudgeEvaluator:
         base_model_output = self.base_tokenizer.decode(base_model_output[0], skip_special_tokens=True)
         
         return base_model_output
+
+    def generate_vLLM_base_model_output(self, problem: str, **kwargs) -> str:
+        """Generate output from base model using vLLM."""
+        # Initialize vLLM model if not already done
+        if not hasattr(self, 'vllm_base_model') or self.vllm_base_model is None:
+            self.setup_vllm_base_model(**kwargs)
+        
+        system_message = kwargs.get("system_message", self.config.get("system_message", "Solve the following problem with logically complete and formally justified solutions:"))
+        max_tokens = kwargs.get("max_new_tokens", self.config.get("max_new_tokens", 128))
+        temperature = kwargs.get("temperature", self.config.get("temperature", 0.0))
+        top_p = kwargs.get("top_p", self.config.get("top_p", 1.0))
+        
+        # Prepare messages in chat format
+        messages = [
+            {
+                "role": "system",
+                "content": system_message
+            },
+            {
+                "role": "user", 
+                "content": f"### Problem:\n{problem}\n\n### Solution:"
+            }
+        ]
+        
+        # Apply chat template
+        prompt = self.vllm_base_tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False, 
+            add_generation_prompt=True
+        )
+        
+        # Configure sampling parameters
+        sampling_params = self.SamplingParams(
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            stop=kwargs.get("stop_tokens", None)
+        )
+        
+        # Generate using vLLM
+        outputs = self.vllm_base_model.generate([prompt], sampling_params)
+        
+        # Extract generated text
+        generated_text = outputs[0].outputs[0].text
+        
+        return generated_text
+
     
     def evaluate_outputs(self, finetuned_outputs_file: str) -> List[Dict[str, Any]]:
         """Evaluate finetuned model outputs against base model (identical to original implementation)."""
@@ -206,6 +276,17 @@ class LLMGeminiJudgeEvaluatorAsync:
             problem, 
             **kwargs
         )
+    
+    async def generate_vLLM_base_model_output_async(self, problem: str, **kwargs) -> str:
+        """Async wrapper for vLLM base model output generation."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            self.cpu_executor, 
+            self.generate_vLLM_base_model_output, 
+            problem, 
+            **kwargs
+        )
+
 
     async def compare_math_solutions_async(self, finetuned_output: str, base_output: str, 
                                          problem: str, **kwargs) -> str:
